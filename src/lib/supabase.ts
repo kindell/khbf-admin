@@ -31,4 +31,9 @@ export interface Member {
   first_visit_at: string;
   created_at: string;
   updated_at: string;
+  // Payment tracking
+  last_queue_fee_date: string | null;
+  last_annual_fee_date: string | null;
+  last_entrance_fee_date: string | null;
+  fortnox_customer_since: string | null;
 }
