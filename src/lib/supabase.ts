@@ -32,6 +32,7 @@ export interface Member {
   created_at: string;
   updated_at: string;
   // Payment tracking
+  first_queue_fee_date: string | null;
   last_queue_fee_date: string | null;
   last_annual_fee_date: string | null;
   last_entrance_fee_date: string | null;

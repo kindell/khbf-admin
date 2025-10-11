@@ -18,10 +18,17 @@ function App() {
 
   useEffect(() => {
     fetchMembers();
+
+    // Auto-refresh every 30 seconds to keep data fresh
+    const intervalId = setInterval(() => {
+      fetchMembers(false); // Don't show loading spinner for auto-refresh
+    }, 30000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
-  async function fetchMembers() {
-    setLoading(true);
+  async function fetchMembers(showLoading = true) {
+    if (showLoading) setLoading(true);
 
     // Fetch ALL members from members table (remove default 1000 limit)
     let allMembers: any[] = [];
@@ -176,7 +183,7 @@ function App() {
 
     console.log('Fetched members:', membersWithVisits.length, 'members');
     setMembers(membersWithVisits);
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }
 
   if (loading) {

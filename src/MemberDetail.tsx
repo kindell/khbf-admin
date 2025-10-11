@@ -7,6 +7,7 @@ import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { ArrowLeft, Mail, Phone, MapPin, CreditCard, Smartphone, Key, Calendar } from 'lucide-react';
+import { RelatedMembers } from './components/RelatedMembers';
 
 interface MemberDetailProps {
   members: Member[];
@@ -47,6 +48,11 @@ interface AptusKey {
   name: string;
   blocked: boolean;
   f1: string | null;
+  total_uses: number;
+  herrar_uses: number;
+  damer_uses: number;
+  first_used: string | null;
+  last_used: string | null;
 }
 
 interface RFIDCardInfo {
@@ -185,6 +191,16 @@ export default function MemberDetail({ members }: MemberDetailProps) {
 
     // Fetch access information with detailed RFID statistics
     const rfidCardsInfo: RFIDCardInfo[] = [];
+
+    // Group visits by card and calculate statistics (needed for Aptus keys later)
+    const cardStats = new Map<string, {
+      total: number;
+      herrar: number;
+      damer: number;
+      first: string;
+      last: string;
+    }>();
+
     if (currentMember.aptus_user_id) {
       // Get all visits with RFID cards for this user
       const { data: rfidVisits } = await supabase
@@ -193,15 +209,6 @@ export default function MemberDetail({ members }: MemberDetailProps) {
         .eq('userid', currentMember.aptus_user_id)
         .not('accesscredential', 'is', null)
         .order('eventtime', { ascending: true });
-
-      // Group visits by card and calculate statistics
-      const cardStats = new Map<string, {
-        total: number;
-        herrar: number;
-        damer: number;
-        first: string;
-        last: string;
-      }>();
 
       rfidVisits?.forEach(visit => {
         const card = visit.accesscredential;
@@ -296,24 +303,35 @@ export default function MemberDetail({ members }: MemberDetailProps) {
       }
     }
 
-    // Fetch Aptus keys using customer_number
+    // Fetch Aptus keys using fortnox_customer_number and combine with visit statistics
     const aptusKeys: AptusKey[] = [];
-    if (currentMember.customer_number) {
+    if (currentMember.fortnox_customer_number && currentMember.aptus_user_id) {
+      // cardStats was already built from visits above
       const { data: aptusData } = await supabase
         .from('aptus_users')
         .select('card, name, blocked, f1')
-        .eq('f0', currentMember.customer_number);
+        .eq('f0', currentMember.fortnox_customer_number);
 
       if (aptusData) {
-        aptusKeys.push(...aptusData);
+        aptusData.forEach(aptusCard => {
+          const stats = cardStats.get(aptusCard.card);
+          aptusKeys.push({
+            ...aptusCard,
+            total_uses: stats?.total || 0,
+            herrar_uses: stats?.herrar || 0,
+            damer_uses: stats?.damer || 0,
+            first_used: stats?.first || null,
+            last_used: stats?.last || null
+          });
+        });
       }
     }
 
     setAccessInfo({
-      has_rfid: rfidCardsInfo.length > 0,
+      has_rfid: false, // Deprecated, kept for backwards compatibility
       has_parakey: !!parakeyEmail,
       has_aptus: aptusKeys.length > 0,
-      rfid_cards: rfidCardsInfo,
+      rfid_cards: [], // Deprecated, kept for backwards compatibility
       parakey_email: parakeyEmail,
       parakey_dept_stats: parakeyDeptStats,
       aptus_keys: aptusKeys
@@ -461,6 +479,9 @@ export default function MemberDetail({ members }: MemberDetailProps) {
         </Card>
       </div>
 
+      {/* Related Members */}
+      <RelatedMembers memberId={id!} />
+
       {!loading && accessInfo && (
         <Card>
           <CardHeader>
@@ -470,46 +491,10 @@ export default function MemberDetail({ members }: MemberDetailProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!accessInfo.has_rfid && !accessInfo.has_parakey && !accessInfo.has_aptus ? (
+            {!accessInfo.has_parakey && !accessInfo.has_aptus ? (
               <p className="text-sm text-muted-foreground">Inga accessmetoder registrerade</p>
             ) : (
               <div className="space-y-6">
-                {accessInfo.has_rfid && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4 text-muted-foreground" />
-                      <h4 className="font-semibold">RFID-brickor ({accessInfo.rfid_cards.length})</h4>
-                    </div>
-                    <div className="space-y-3">
-                      {accessInfo.rfid_cards.map((card, idx) => (
-                        <div key={idx} className="rounded-lg border p-3 space-y-2">
-                          <div className="font-mono text-sm font-medium">{card.card_number}</div>
-                          {card.total_uses > 0 ? (
-                            <>
-                              <div className="flex gap-4 text-sm">
-                                <span>
-                                  Totalt: <strong>{card.total_uses}</strong> besök
-                                </span>
-                                <span>
-                                  ♂️ <strong>{card.herrar_uses}</strong>
-                                </span>
-                                <span>
-                                  ♀️ <strong>{card.damer_uses}</strong>
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Senast använd: {new Date(card.last_used!).toLocaleDateString('sv-SE')}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Aldrig använd</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {accessInfo.has_parakey && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
@@ -536,17 +521,39 @@ export default function MemberDetail({ members }: MemberDetailProps) {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <Key className="h-4 w-4 text-muted-foreground" />
-                      <h4 className="font-semibold">Aptus-nycklar ({accessInfo.aptus_keys.length})</h4>
+                      <h4 className="font-semibold">Aptus-nycklar (RFID) ({accessInfo.aptus_keys.length})</h4>
                     </div>
                     <div className="space-y-2">
                       {accessInfo.aptus_keys.map((key, idx) => (
-                        <div key={idx} className="rounded-lg border p-3 space-y-1">
-                          <div className="font-mono text-sm font-medium">{key.card}</div>
+                        <div key={idx} className="rounded-lg border p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-mono text-sm font-medium">{key.card}</div>
+                            {key.blocked && (
+                              <Badge variant="destructive">
+                                🚫 Blockerad
+                              </Badge>
+                            )}
+                          </div>
                           {key.f1 && <p className="text-sm text-muted-foreground">{key.f1}</p>}
-                          {key.blocked && (
-                            <Badge variant="destructive" className="mt-2">
-                              🚫 Blockerad
-                            </Badge>
+                          {key.total_uses > 0 ? (
+                            <>
+                              <div className="flex gap-4 text-sm">
+                                <span>
+                                  Totalt: <strong>{key.total_uses}</strong> besök
+                                </span>
+                                <span>
+                                  ♂️ <strong>{key.herrar_uses}</strong>
+                                </span>
+                                <span>
+                                  ♀️ <strong>{key.damer_uses}</strong>
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Senast använd: {new Date(key.last_used!).toLocaleDateString('sv-SE')}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Aldrig använd</p>
                           )}
                         </div>
                       ))}
