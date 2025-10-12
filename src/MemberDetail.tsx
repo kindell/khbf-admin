@@ -8,6 +8,7 @@ import { Separator } from './components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { ArrowLeft, Mail, Phone, MapPin, CreditCard, Smartphone, Key, Calendar } from 'lucide-react';
 import { RelatedMembers } from './components/RelatedMembers';
+import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
 
 interface MemberDetailProps {
   members: Member[];
@@ -86,6 +87,16 @@ export default function MemberDetail({ members }: MemberDetailProps) {
   const [loading, setLoading] = useState(true);
 
   const [member, setMember] = useState<Member | null>(null);
+
+  // Smart back button: use browser history if available, otherwise go to home
+  const handleBack = () => {
+    // Check if there's history to go back to (not a direct link)
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate('/');
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -337,16 +348,27 @@ export default function MemberDetail({ members }: MemberDetailProps) {
       aptus_keys: aptusKeys
     });
 
-    // Fetch invoices from API
+    // Fetch invoices directly from Supabase
     if (currentMember.fortnox_customer_number) {
-      try {
-        const response = await fetch(`http://localhost:3002/api/invoices/${currentMember.fortnox_customer_number}`);
-        if (response.ok) {
-          const invoiceData = await response.json();
-          setInvoices(invoiceData);
-        }
-      } catch (err) {
-        console.error('Failed to fetch invoices:', err);
+      const { data: invoiceData } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('fortnox_customer_number', currentMember.fortnox_customer_number)
+        .order('invoice_date', { ascending: false });
+
+      if (invoiceData) {
+        // Map database format to component format
+        const mappedInvoices: Invoice[] = invoiceData.map(inv => ({
+          DocumentNumber: inv.fortnox_invoice_number,
+          InvoiceDate: inv.invoice_date,
+          DueDate: inv.due_date || '',
+          Total: inv.total,
+          Balance: 0, // Assume paid (since we only sync booked invoices)
+          Cancelled: inv.cancelled,
+          Sent: true, // Assume sent if booked
+          InvoiceType: inv.invoice_type || 'INVOICE'
+        }));
+        setInvoices(mappedInvoices);
       }
     }
 
@@ -356,7 +378,7 @@ export default function MemberDetail({ members }: MemberDetailProps) {
   if (!member) {
     return (
       <div className="space-y-6">
-        <Button variant="ghost" onClick={() => navigate('/')}>
+        <Button variant="ghost" onClick={handleBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Tillbaka
         </Button>
@@ -372,7 +394,7 @@ export default function MemberDetail({ members }: MemberDetailProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => navigate('/')}>
+        <Button variant="ghost" onClick={handleBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Tillbaka
         </Button>
@@ -465,9 +487,9 @@ export default function MemberDetail({ members }: MemberDetailProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Status</p>
-              <Badge variant={member.status === 'SENIOR' ? 'secondary' : 'default'}>
-                {member.status}
+              <p className="text-sm font-medium text-muted-foreground">Kategori</p>
+              <Badge variant={getCategoryBadgeVariant(getMemberCategory(member))}>
+                {getMemberCategory(member)}
               </Badge>
             </div>
             <Separator />
