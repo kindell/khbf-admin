@@ -98,6 +98,18 @@ function App() {
       phoneMap.set(p.member_id, { phone: p.phone_number, type: p.phone_type });
     });
 
+    // Fetch member relations (for medbadare detection)
+    const { data: relationsData } = await supabase
+      .from('member_relations')
+      .select('medbadare_member_id, primary_member_id');
+
+    const relationsMap = new Map<string, string[]>();
+    relationsData?.forEach(r => {
+      const existing = relationsMap.get(r.medbadare_member_id) || [];
+      existing.push(r.primary_member_id);
+      relationsMap.set(r.medbadare_member_id, existing);
+    });
+
     // Collect all user IDs for visit stats lookup
     const allUserIds = new Set<string>();
     membersData.forEach(m => {
@@ -178,6 +190,7 @@ function App() {
             (m.parakey_user_id ? visitCounts.get(m.parakey_user_id) || 0 : 0),
           visits_total: totalVisits,
           last_visit_at: lastVisit,
+          related_members: relationsMap.get(m.id) || [],
         };
       }) || [];
 

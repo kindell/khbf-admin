@@ -4,6 +4,8 @@ export type MemberCategory = 'MEDLEM' | 'SPONSOR' | 'KÖANDE' | 'MEDBADARE' | 'I
 
 /**
  * Calculate member category based on payment history, access, and visit activity
+ *
+ * Note: member.related_members is populated by App.tsx when loading member data
  */
 export function getMemberCategory(member: Member): MemberCategory {
   const now = new Date();
@@ -30,6 +32,10 @@ export function getMemberCategory(member: Member): MemberCategory {
   // Check if has ever paid annual or entrance fee (membership fees)
   const hasEverPaidMembershipFee = !!(member.last_annual_fee_date || member.last_entrance_fee_date);
 
+  // Check if is linked as medbadare to another member
+  // @ts-ignore - related_members is added dynamically by App.tsx
+  const isMedbadare = member.related_members && member.related_members.length > 0;
+
   // Classification logic
   if (hasPaidMembershipFee && hasRecentVisits) {
     return 'MEDLEM';
@@ -47,9 +53,11 @@ export function getMemberCategory(member: Member): MemberCategory {
     return 'KÖANDE';
   }
 
-  // MEDBADARE: Has access but NEVER paid annual/entrance fee
-  // (e.g., guests, companions, people who only rent sauna, temporary access)
-  // They may have paid other fees like queue fee or sauna rental
+  // MEDBADARE: Either has relation to active member OR has access but never paid
+  if (isMedbadare) {
+    return 'MEDBADARE';
+  }
+
   if (hasAccess && !hasEverPaidMembershipFee) {
     return 'MEDBADARE';
   }
