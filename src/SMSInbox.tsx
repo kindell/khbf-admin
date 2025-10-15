@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { BroadcastComposer } from './components/BroadcastComposer';
+import { BroadcastList } from './components/BroadcastList';
 import './SMSInbox.css';
 
 interface Thread {
@@ -21,7 +23,8 @@ interface SMSInboxProps {
 export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showNewChat, setShowNewChat] = useState(false);
+  const [activeTab, setActiveTab] = useState<'conversations' | 'broadcasts'>('conversations');
+  const [showComposer, setShowComposer] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -92,67 +95,84 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
         <h1>📱 SMS Inbox</h1>
         <button
           className="new-chat-button"
-          onClick={() => setShowNewChat(true)}
+          onClick={() => setShowComposer(true)}
         >
-          ✏️ Ny konversation
+          ✏️ Nytt meddelande
         </button>
       </div>
 
-      {loading ? (
-        <div className="loading-state">
-          <div className="spinner"></div>
-          <p>Laddar konversationer...</p>
-        </div>
-      ) : threads.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-icon">💬</div>
-          <h2>Inga konversationer än</h2>
-          <p>Skicka ett SMS eller starta en ny konversation</p>
-          <button className="primary-button" onClick={() => setShowNewChat(true)}>
-            Starta konversation
-          </button>
-        </div>
+      {/* Tabs */}
+      <div className="inbox-tabs">
+        <button
+          className={`tab ${activeTab === 'conversations' ? 'active' : ''}`}
+          onClick={() => setActiveTab('conversations')}
+        >
+          💬 Konversationer
+        </button>
+        <button
+          className={`tab ${activeTab === 'broadcasts' ? 'active' : ''}`}
+          onClick={() => setActiveTab('broadcasts')}
+        >
+          📤 Skickade
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'conversations' ? (
+        loading ? (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Laddar konversationer...</p>
+          </div>
+        ) : threads.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">💬</div>
+            <h2>Inga konversationer än</h2>
+            <p>Inkommande svar på dina meddelanden visas här</p>
+          </div>
+        ) : (
+          <div className="thread-list">
+            {threads.map(thread => (
+              <div
+                key={thread.id}
+                className={`thread-item ${thread.unread_count > 0 ? 'unread' : ''}`}
+                onClick={() => navigate(`/sms/${thread.id}`)}
+              >
+                <div className="thread-avatar">
+                  {thread.member_name ? thread.member_name.charAt(0).toUpperCase() : '?'}
+                </div>
+                <div className="thread-content">
+                  <div className="thread-header-row">
+                    <strong className="thread-name">
+                      {thread.member_name || thread.phone_number}
+                    </strong>
+                    <span className="thread-time">
+                      {formatTime(thread.last_message_at)}
+                    </span>
+                  </div>
+                  <div className="thread-preview-row">
+                    <span className="thread-preview">
+                      {thread.last_message_text}
+                    </span>
+                    {thread.unread_count > 0 && (
+                      <span className="unread-badge">{thread.unread_count}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
-        <div className="thread-list">
-          {threads.map(thread => (
-            <div
-              key={thread.id}
-              className={`thread-item ${thread.unread_count > 0 ? 'unread' : ''}`}
-              onClick={() => navigate(`/sms/${thread.id}`)}
-            >
-              <div className="thread-avatar">
-                {thread.member_name ? thread.member_name.charAt(0).toUpperCase() : '?'}
-              </div>
-              <div className="thread-content">
-                <div className="thread-header-row">
-                  <strong className="thread-name">
-                    {thread.member_name || thread.phone_number}
-                  </strong>
-                  <span className="thread-time">
-                    {formatTime(thread.last_message_at)}
-                  </span>
-                </div>
-                <div className="thread-preview-row">
-                  <span className="thread-preview">
-                    {thread.last_message_text}
-                  </span>
-                  {thread.unread_count > 0 && (
-                    <span className="unread-badge">{thread.unread_count}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <BroadcastList />
       )}
 
-      {showNewChat && (
-        <NewChatModal
-          onClose={() => setShowNewChat(false)}
-          onSelectMember={(memberId) => {
-            setShowNewChat(false);
-            // Navigate to thread for this member
-            // We'll implement this in the next component
+      {showComposer && (
+        <BroadcastComposer
+          onClose={() => setShowComposer(false)}
+          onSent={() => {
+            setShowComposer(false);
+            setActiveTab('broadcasts');
           }}
         />
       )}
@@ -160,8 +180,8 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
   );
 }
 
-// NewChatModal - Member selector for starting conversations
-function NewChatModal({ onClose, onSelectMember }: any) {
+// Removed NewChatModal - replaced with BroadcastComposer
+/* function NewChatModal({ onClose, onSelectMember }: any) {
   const [members, setMembers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

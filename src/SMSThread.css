@@ -12,6 +12,9 @@
   display: flex;
   align-items: center;
   gap: 15px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .back-button {
@@ -168,6 +171,13 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-bottom-right-radius: 4px;
+}
+
+.message-sender {
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  opacity: 0.8;
 }
 
 .message-text {

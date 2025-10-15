@@ -32,6 +32,38 @@
   background: #5568d3;
 }
 
+/* Tabs */
+.inbox-tabs {
+  display: flex;
+  gap: 2px;
+  background: #e2e8f0;
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.inbox-tabs .tab {
+  flex: 1;
+  padding: 12px 20px;
+  background: transparent;
+  border: none;
+  color: #718096;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.inbox-tabs .tab:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.inbox-tabs .tab.active {
+  background: white;
+  color: #2d3748;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 .logout-button {
   background: white;
   color: #718096;

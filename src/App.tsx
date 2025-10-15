@@ -6,6 +6,7 @@ import MemberDetail from './MemberDetail';
 import ParakeyMapping from './ParakeyMapping';
 import { SMSInbox } from './SMSInbox';
 import { SMSThread } from './SMSThread';
+import { BroadcastDetail } from './components/BroadcastDetail';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AdminLogin } from './components/AdminLogin';
 import { StatsCard } from './components/StatsCard';
@@ -349,6 +350,10 @@ function App() {
         <Route
           path="/sms/:threadId"
           element={<SMSThread />}
+        />
+        <Route
+          path="/sms/broadcast/:broadcastId"
+          element={<BroadcastDetail />}
         />
       </Routes>
     </DashboardLayout>

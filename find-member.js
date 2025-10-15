@@ -3,29 +3,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+);
 
-const searchName = process.argv[2];
+async function findMember() {
+  const { data, error } = await supabase
+    .from('members')
+    .select('id, fortnox_customer_number, first_name, last_name, phone_mappings!inner(phone_number, is_primary)')
+    .eq('fortnox_customer_number', 1505)
+    .eq('phone_mappings.is_primary', true)
+    .single();
 
-if (!searchName) {
-  console.log('Usage: node find-member.js "Name"');
-  process.exit(1);
+  if (error) {
+    console.error('Error:', error);
+    return;
+  }
+
+  if (data) {
+    console.log('Medlem 1505:', data.first_name, data.last_name);
+    console.log('Telefon:', data.phone_mappings[0]?.phone_number);
+  }
 }
 
-const { data: members } = await supabase
-  .from('members')
-  .select('id, fortnox_customer_number, first_name, last_name, email')
-  .or(`first_name.ilike.%${searchName}%,last_name.ilike.%${searchName}%`);
-
-if (!members || members.length === 0) {
-  console.log('❌ No members found');
-} else {
-  console.log(`Found ${members.length} member(s):\n`);
-  members.forEach(m => {
-    console.log(`ID: ${m.id}`);
-    console.log(`Name: ${m.first_name} ${m.last_name}`);
-    console.log(`Email: ${m.email || '-'}`);
-    console.log(`Customer#: ${m.fortnox_customer_number}`);
-    console.log('---');
-  });
-}
+findMember();
