@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { supabase, type Member } from './lib/supabase';
 import MemberList from './MemberList';
 import MemberDetail from './MemberDetail';
@@ -16,6 +16,8 @@ export type Period = 'week' | 'month' | '3months';
 const SESSION_STORAGE_KEY = 'khbf_admin_session';
 
 function App() {
+  const location = useLocation();
+
   // Auth state
   const [session, setSession] = useState<{
     memberId: string;
@@ -46,17 +48,32 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Only fetch members when on home page or member detail page
+    const isHomePage = location.pathname === '/';
+    const isMemberDetailPage = location.pathname.startsWith('/medlem/');
+    const needsMemberData = isHomePage || isMemberDetailPage;
+
     if (session) {
-      fetchMembers();
+      if (needsMemberData) {
+        fetchMembers();
 
-      // Auto-refresh every 30 seconds to keep data fresh
-      const intervalId = setInterval(() => {
-        fetchMembers(false); // Don't show loading spinner for auto-refresh
-      }, 30000);
+        // Auto-refresh every 30 seconds only on home page
+        let intervalId: NodeJS.Timeout | null = null;
+        if (isHomePage) {
+          intervalId = setInterval(() => {
+            fetchMembers(false); // Don't show loading spinner for auto-refresh
+          }, 30000);
+        }
 
-      return () => clearInterval(intervalId);
+        return () => {
+          if (intervalId) clearInterval(intervalId);
+        };
+      } else {
+        // On pages that don't need member data, set loading to false immediately
+        setLoading(false);
+      }
     }
-  }, [session]);
+  }, [session, location.pathname]);
 
   function handleLogin(memberId: string, memberName: string, phoneNumber: string) {
     const newSession = { memberId, memberName, phoneNumber };

@@ -140,7 +140,8 @@ function handleRequestCode($input) {
         'direction' => 'outbound',
         'phone_number' => $normalizedPhone,
         'message' => $message,
-        'status' => 'pending'
+        'status' => 'pending',
+        'is_system' => true  // Mark OTP messages as system messages
     ]);
 
     if (!$smsResult['success']) {

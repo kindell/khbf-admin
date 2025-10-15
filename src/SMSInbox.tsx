@@ -49,6 +49,7 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
           last_name
         )
       `)
+      .eq('has_user_messages', true)  // Only show threads with user messages (not system-only)
       .order('last_message_at', { ascending: false });
 
     if (error) {
