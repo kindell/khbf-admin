@@ -11,6 +11,7 @@ interface SMS {
   status: string;
   sent_at: string | null;
   received_at: string | null;
+  is_system?: boolean;
 }
 
 interface ThreadInfo {
@@ -27,6 +28,7 @@ export function SMSThread() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [deletingMessage, setDeletingMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export function SMSThread() {
           filter: `thread_id=eq.${threadId}`
         },
         (payload) => {
+          console.log('📨 New SMS received via realtime:', payload.new);
           setMessages(prev => {
             // Check if message already exists (optimistic update)
             const exists = prev.some(msg => msg.id === payload.new.id);
@@ -64,6 +67,7 @@ export function SMSThread() {
           filter: `thread_id=eq.${threadId}`
         },
         (payload) => {
+          console.log('✏️ SMS status updated via realtime:', payload.new);
           setMessages(prev =>
             prev.map(msg =>
               msg.id === payload.new.id ? (payload.new as SMS) : msg
@@ -71,9 +75,21 @@ export function SMSThread() {
           );
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔌 Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Successfully subscribed to SMS updates for thread:', threadId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Realtime subscription error');
+        } else if (status === 'TIMED_OUT') {
+          console.warn('⏰ Realtime subscription timed out');
+        }
+      });
 
-    return () => { subscription.unsubscribe(); };
+    return () => {
+      console.log('🔌 Unsubscribing from SMS realtime updates');
+      subscription.unsubscribe();
+    };
   }, [threadId]);
 
   useEffect(() => {
@@ -169,6 +185,57 @@ export function SMSThread() {
     });
   }
 
+  async function deleteMessage(messageId: string) {
+    if (!confirm('Är du säker på att du vill radera detta meddelande?')) return;
+
+    setDeletingMessage(messageId);
+
+    try {
+      const { error } = await supabase
+        .from('sms_queue')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+
+      // Remove from UI
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+      alert('Kunde inte radera meddelandet');
+    } finally {
+      setDeletingMessage(null);
+    }
+  }
+
+  async function deleteThread() {
+    if (!confirm('Är du säker på att du vill radera hela tråden? Detta kan inte ångras.')) return;
+
+    try {
+      // First delete all messages in the thread
+      const { error: messagesError } = await supabase
+        .from('sms_queue')
+        .delete()
+        .eq('thread_id', threadId);
+
+      if (messagesError) throw messagesError;
+
+      // Then delete the thread itself
+      const { error: threadError } = await supabase
+        .from('sms_threads')
+        .delete()
+        .eq('id', threadId);
+
+      if (threadError) throw threadError;
+
+      // Navigate back to inbox
+      navigate('/sms');
+    } catch (error) {
+      console.error('Failed to delete thread:', error);
+      alert('Kunde inte radera tråden');
+    }
+  }
+
   if (loading) {
     return (
       <div className="sms-thread-container">
@@ -192,14 +259,23 @@ export function SMSThread() {
             <span className="phone-number">{threadInfo.phone_number}</span>
           )}
         </div>
-        {threadInfo?.member_id && (
+        <div className="thread-actions">
+          {threadInfo?.member_id && (
+            <button
+              className="view-profile-button"
+              onClick={() => navigate(`/medlem/${threadInfo.member_id}`)}
+            >
+              Visa profil
+            </button>
+          )}
           <button
-            className="view-profile-button"
-            onClick={() => navigate(`/medlem/${threadInfo.member_id}`)}
+            className="delete-thread-button"
+            onClick={deleteThread}
+            title="Radera tråd"
           >
-            Visa profil
+            🗑️
           </button>
-        )}
+        </div>
       </div>
 
       <div className="messages-container">
@@ -212,9 +288,17 @@ export function SMSThread() {
             messages.map(msg => (
               <div
                 key={msg.id}
-                className={`message ${msg.direction}`}
+                className={`message ${msg.direction} ${deletingMessage === msg.id ? 'deleting' : ''}`}
               >
                 <div className="message-bubble">
+                  <button
+                    className="delete-message-button"
+                    onClick={() => deleteMessage(msg.id)}
+                    disabled={deletingMessage === msg.id}
+                    title="Radera meddelande"
+                  >
+                    ✕
+                  </button>
                   <div className="message-text">{msg.message}</div>
                   <div className="message-meta">
                     <span className="message-time">
