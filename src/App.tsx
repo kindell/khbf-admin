@@ -4,28 +4,70 @@ import { supabase, type Member } from './lib/supabase';
 import MemberList from './MemberList';
 import MemberDetail from './MemberDetail';
 import ParakeyMapping from './ParakeyMapping';
+import { SMSInbox } from './SMSInbox';
+import { SMSThread } from './SMSThread';
 import { DashboardLayout } from './components/DashboardLayout';
+import { AdminLogin } from './components/AdminLogin';
 import { StatsCard } from './components/StatsCard';
 import { Users, UserCheck, Activity, TrendingUp } from 'lucide-react';
 
 export type Period = 'week' | 'month' | '3months';
 
+const SESSION_STORAGE_KEY = 'khbf_admin_session';
+
 function App() {
+  // Auth state
+  const [session, setSession] = useState<{
+    memberId: string;
+    memberName: string;
+    phoneNumber: string;
+  } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Member data state
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>('month');
   const [search, setSearch] = useState('');
 
+  // Load session from localStorage on mount
   useEffect(() => {
-    fetchMembers();
-
-    // Auto-refresh every 30 seconds to keep data fresh
-    const intervalId = setInterval(() => {
-      fetchMembers(false); // Don't show loading spinner for auto-refresh
-    }, 30000);
-
-    return () => clearInterval(intervalId);
+    const savedSession = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const parsedSession = JSON.parse(savedSession);
+        setSession(parsedSession);
+      } catch (error) {
+        console.error('Failed to parse saved session:', error);
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    }
+    setAuthLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (session) {
+      fetchMembers();
+
+      // Auto-refresh every 30 seconds to keep data fresh
+      const intervalId = setInterval(() => {
+        fetchMembers(false); // Don't show loading spinner for auto-refresh
+      }, 30000);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [session]);
+
+  function handleLogin(memberId: string, memberName: string, phoneNumber: string) {
+    const newSession = { memberId, memberName, phoneNumber };
+    setSession(newSession);
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(newSession));
+  }
+
+  function handleLogout() {
+    setSession(null);
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  }
 
   async function fetchMembers(showLoading = true) {
     if (showLoading) setLoading(true);
@@ -199,9 +241,24 @@ function App() {
     if (showLoading) setLoading(false);
   }
 
+  // Show loading state while checking for saved session
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <p>Laddar...</p>
+      </div>
+    );
+  }
+
+  // Not logged in - show login screen
+  if (!session) {
+    return <AdminLogin onLoginSuccess={handleLogin} />;
+  }
+
+  // Logged in - show admin app
   if (loading) {
     return (
-      <DashboardLayout>
+      <DashboardLayout userName={session.memberName} onLogout={handleLogout}>
         <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground">Laddar medlemmar...</p>
         </div>
@@ -216,7 +273,7 @@ function App() {
   const avgVisitsPerMember = totalMembers > 0 ? Math.round(totalVisitsThisMonth / totalMembers) : 0;
 
   return (
-    <DashboardLayout>
+    <DashboardLayout userName={session.memberName} onLogout={handleLogout}>
       <Routes>
         <Route
           path="/"
@@ -267,6 +324,14 @@ function App() {
         <Route
           path="/parakey-mapping"
           element={<ParakeyMapping />}
+        />
+        <Route
+          path="/sms"
+          element={<SMSInbox adminMemberId={session.memberId} adminMemberName={session.memberName} />}
+        />
+        <Route
+          path="/sms/:threadId"
+          element={<SMSThread />}
         />
       </Routes>
     </DashboardLayout>

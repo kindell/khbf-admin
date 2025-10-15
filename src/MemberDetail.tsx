@@ -6,7 +6,7 @@ import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { ArrowLeft, Mail, Phone, MapPin, CreditCard, Smartphone, Key, Calendar } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, MapPin, CreditCard, Smartphone, Key, Calendar, MessageSquare } from 'lucide-react';
 import { RelatedMembers } from './components/RelatedMembers';
 import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
 
@@ -85,6 +85,7 @@ export default function MemberDetail({ members }: MemberDetailProps) {
   const [accessInfo, setAccessInfo] = useState<AccessInfo | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [smsThreadId, setSmsThreadId] = useState<string | null>(null);
 
   const [member, setMember] = useState<Member | null>(null);
 
@@ -155,6 +156,18 @@ export default function MemberDetail({ members }: MemberDetailProps) {
       .order('is_primary', { ascending: false });
 
     setPhones(phoneData || []);
+
+    // Check for SMS thread - look for primary mobile number
+    const primaryMobile = phoneData?.find(p => p.is_primary && p.phone_type === 'mobile');
+    if (primaryMobile) {
+      const { data: threadData } = await supabase
+        .from('sms_threads')
+        .select('id')
+        .eq('phone_number', primaryMobile.phone_number)
+        .single();
+
+      setSmsThreadId(threadData?.id || null);
+    }
 
     // Collect all email addresses
     const emailList: EmailInfo[] = [];
@@ -462,6 +475,28 @@ export default function MemberDetail({ members }: MemberDetailProps) {
                 <p className="text-sm font-medium text-muted-foreground">Telefon</p>
                 <p className="text-sm">-</p>
               </div>
+            )}
+
+            {phones.some(p => p.phone_type === 'mobile') && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <Button
+                    className="w-full"
+                    variant={smsThreadId ? "default" : "outline"}
+                    onClick={() => {
+                      if (smsThreadId) {
+                        navigate(`/sms/${smsThreadId}`);
+                      } else {
+                        navigate('/sms');
+                      }
+                    }}
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    {smsThreadId ? 'Visa SMS-konversation' : 'Skicka SMS'}
+                  </Button>
+                </div>
+              </>
             )}
 
             <Separator />
