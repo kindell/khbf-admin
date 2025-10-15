@@ -223,6 +223,7 @@
   border-top: 1px solid #e2e8f0;
   padding: 15px 20px;
   display: flex;
+  align-items: center;
   gap: 10px;
   max-width: 800px;
   margin: 0 auto;
@@ -232,31 +233,52 @@
 
 .message-input {
   flex: 1;
-  padding: 12px 16px;
+  height: 40px;
+  padding: 0 16px;
   border: 1px solid #e2e8f0;
-  border-radius: 24px;
+  border-radius: 20px;
   font-size: 1rem;
   outline: none;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
 
 .message-input:focus {
   border-color: #667eea;
 }
 
+.message-input.broadcast-input {
+  border: 2px solid #f59e0b;
+  background: #fffbeb;
+}
+
+.message-input.broadcast-input:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
 .send-button {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  max-width: 40px;
+  max-height: 40px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   font-size: 1.3rem;
+  font-weight: bold;
   cursor: pointer;
   transition: transform 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  line-height: 1;
+  margin-left: auto;
 }
 
 .send-button:hover:not(:disabled) {

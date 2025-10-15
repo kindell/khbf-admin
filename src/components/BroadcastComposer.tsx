@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import '../SMSThread.css'; // For shared send-button styling
 import './BroadcastComposer.css';
 
 interface Recipient {
@@ -10,11 +11,12 @@ interface Recipient {
 }
 
 interface BroadcastComposerProps {
+  mode?: 'broadcast' | 'conversation';
   onClose: () => void;
-  onSent?: () => void;
+  onSent?: (threadId?: string) => void;
 }
 
-export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
+export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: BroadcastComposerProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -72,6 +74,11 @@ export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
   }
 
   function addRecipient(member: any) {
+    // In conversation mode, only allow one recipient
+    if (mode === 'conversation' && recipients.length >= 1) {
+      return;
+    }
+
     const recipient: Recipient = {
       id: member.id,
       name: member.name,
@@ -96,55 +103,105 @@ export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
     setSending(true);
 
     try {
-      // Create broadcast record
-      const { data: broadcast, error: broadcastError } = await supabase
-        .from('sms_broadcasts')
-        .insert({
-          message: message.trim(),
-          recipient_count: recipients.length
-        })
-        .select()
-        .single();
+      if (mode === 'conversation') {
+        // For conversation mode, send directly to one recipient
+        const recipient = recipients[0];
 
-      if (broadcastError) throw broadcastError;
+        // Find or create thread
+        let { data: thread } = await supabase
+          .from('sms_threads')
+          .select('id')
+          .eq('phone_number', recipient.phone)
+          .single();
 
-      // Queue SMS for each recipient and create recipient records
-      for (const recipient of recipients) {
-        // Insert into sms_queue
-        const { data: queuedSMS, error: queueError } = await supabase
+        // If no thread exists, create one
+        if (!thread) {
+          const { data: newThread, error: threadError } = await supabase
+            .from('sms_threads')
+            .insert({
+              phone_number: recipient.phone,
+              member_id: recipient.type === 'member' ? recipient.id : null,
+              last_message_at: new Date().toISOString(),
+              last_message_text: message.trim(),
+              unread_count: 0,
+              has_user_messages: true
+            })
+            .select()
+            .single();
+
+          if (threadError) throw threadError;
+          thread = newThread;
+        }
+
+        // Queue the message
+        const { error: queueError } = await supabase
           .from('sms_queue')
           .insert({
             direction: 'outbound',
             phone_number: recipient.phone,
             message: message.trim(),
             status: 'pending',
-            is_system: false
+            is_system: false,
+            thread_id: thread.id
+          });
+
+        if (queueError) throw queueError;
+
+        console.log(`✅ Message sent to ${recipient.name}`);
+        onSent?.(thread.id);
+        onClose();
+      } else {
+        // Broadcast mode - original logic
+        // Create broadcast record
+        const { data: broadcast, error: broadcastError } = await supabase
+          .from('sms_broadcasts')
+          .insert({
+            message: message.trim(),
+            recipient_count: recipients.length
           })
           .select()
           .single();
 
-        if (queueError) {
-          console.error('Failed to queue SMS:', queueError);
-          continue;
+        if (broadcastError) throw broadcastError;
+
+        // Queue SMS for each recipient and create recipient records
+        for (const recipient of recipients) {
+          // Insert into sms_queue
+          const { data: queuedSMS, error: queueError } = await supabase
+            .from('sms_queue')
+            .insert({
+              direction: 'outbound',
+              phone_number: recipient.phone,
+              message: message.trim(),
+              status: 'pending',
+              is_system: false
+            })
+            .select()
+            .single();
+
+          if (queueError) {
+            console.error('Failed to queue SMS:', queueError);
+            continue;
+          }
+
+          // Create broadcast recipient record
+          await supabase
+            .from('sms_broadcast_recipients')
+            .insert({
+              broadcast_id: broadcast.id,
+              phone_number: recipient.phone,
+              member_id: recipient.type === 'member' ? recipient.id : null,
+              queued_sms_id: queuedSMS.id,
+              status: 'pending'
+            });
         }
 
-        // Create broadcast recipient record
-        await supabase
-          .from('sms_broadcast_recipients')
-          .insert({
-            broadcast_id: broadcast.id,
-            phone_number: recipient.phone,
-            member_id: recipient.type === 'member' ? recipient.id : null,
-            queued_sms_id: queuedSMS.id,
-            status: 'pending'
-          });
+        console.log(`✅ Broadcast created with ${recipients.length} recipients`);
+        onSent?.();
+        onClose();
       }
-
-      console.log(`✅ Broadcast created with ${recipients.length} recipients`);
-      onSent?.();
-      onClose();
     } catch (error) {
-      console.error('Failed to send broadcast:', error);
+      console.error('Failed to send:', error);
       alert('Kunde inte skicka meddelandet');
     } finally {
       setSending(false);
@@ -155,7 +212,7 @@ export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content broadcast-composer" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>✏️ Nytt meddelande</h2>
+          <h2>{mode === 'conversation' ? '💬 Ny konversation' : '📢 Ny broadcast'}</h2>
           <button className="close-button" onClick={onClose}>✕</button>
         </div>
 
@@ -214,9 +271,14 @@ export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
           </div>
 
           {/* Selected recipients count */}
-          {recipients.length > 0 && (
+          {recipients.length > 0 && mode === 'broadcast' && (
             <div className="recipient-count">
               {recipients.length} mottagare valda
+            </div>
+          )}
+          {mode === 'conversation' && recipients.length >= 1 && (
+            <div className="recipient-count" style={{ color: '#48bb78' }}>
+              ✓ Mottagare vald
             </div>
           )}
 
@@ -245,8 +307,12 @@ export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
             className="send-button"
             onClick={handleSend}
             disabled={recipients.length === 0 || !message.trim() || sending}
+            title={mode === 'conversation'
+              ? `Skicka till ${recipients[0]?.name || 'mottagare'}`
+              : `Skicka till ${recipients.length} ${recipients.length === 1 ? 'person' : 'personer'}`
+            }
           >
-            {sending ? 'Skickar...' : `Skicka till ${recipients.length} ${recipients.length === 1 ? 'person' : 'personer'}`}
+            {sending ? '⏳' : '↑'}
           </button>
         </div>
       </div>

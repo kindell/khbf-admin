@@ -15,6 +15,7 @@ interface Thread {
   unread_count: number;
 }
 
+
 interface SMSInboxProps {
   adminMemberId?: string;
   adminMemberName?: string;
@@ -25,6 +26,7 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'conversations' | 'broadcasts'>('conversations');
   const [showComposer, setShowComposer] = useState(false);
+  const [composerMode, setComposerMode] = useState<'broadcast' | 'conversation'>('broadcast');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -93,12 +95,28 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
     <div className="sms-inbox-container">
       <div className="sms-inbox-header">
         <h1>📱 SMS Inbox</h1>
-        <button
-          className="new-chat-button"
-          onClick={() => setShowComposer(true)}
-        >
-          ✏️ Nytt meddelande
-        </button>
+        {activeTab === 'conversations' && (
+          <button
+            className="new-chat-button"
+            onClick={() => {
+              setComposerMode('conversation');
+              setShowComposer(true);
+            }}
+          >
+            💬 Ny konversation
+          </button>
+        )}
+        {activeTab === 'broadcasts' && (
+          <button
+            className="new-chat-button"
+            onClick={() => {
+              setComposerMode('broadcast');
+              setShowComposer(true);
+            }}
+          >
+            📢 Ny Broadcast
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -113,7 +131,7 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
           className={`tab ${activeTab === 'broadcasts' ? 'active' : ''}`}
           onClick={() => setActiveTab('broadcasts')}
         >
-          📤 Skickade
+          📢 Broadcasts
         </button>
       </div>
 
@@ -169,177 +187,19 @@ export function SMSInbox({ adminMemberId, adminMemberName }: SMSInboxProps) {
 
       {showComposer && (
         <BroadcastComposer
+          mode={composerMode}
           onClose={() => setShowComposer(false)}
-          onSent={() => {
+          onSent={(threadId?: string) => {
             setShowComposer(false);
-            setActiveTab('broadcasts');
+            if (composerMode === 'conversation' && threadId) {
+              // Navigate to the new conversation
+              navigate(`/sms/${threadId}`);
+            } else {
+              setActiveTab('broadcasts');
+            }
           }}
         />
       )}
-    </div>
-  );
-}
-
-// Removed NewChatModal - replaced with BroadcastComposer
-/* function NewChatModal({ onClose, onSelectMember }: any) {
-  const [members, setMembers] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (search.length >= 2) {
-      loadMembers();
-    } else {
-      setMembers([]);
-      setLoading(false);
-    }
-  }, [search]);
-
-  async function loadMembers() {
-    setLoading(true);
-
-    // Search by customer number (exact match) or name (partial match)
-    let query = supabase
-      .from('members')
-      .select(`
-        id,
-        fortnox_customer_number,
-        first_name,
-        last_name,
-        phone_mappings!inner(phone_number, is_primary)
-      `)
-      .eq('phone_mappings.is_primary', true);
-
-    // If search is a number, search by customer number
-    if (/^\d+$/.test(search)) {
-      query = query.eq('fortnox_customer_number', parseInt(search));
-    } else {
-      // Search by name (case insensitive)
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
-    }
-
-    const { data, error } = await query
-      .order('first_name')
-      .limit(50);
-
-    if (error) {
-      console.error('Failed to load members:', error);
-      setLoading(false);
-      return;
-    }
-
-    if (data) {
-      setMembers(data.map(m => ({
-        ...m,
-        full_name: `${m.first_name} ${m.last_name}`,
-        phone_number: m.phone_mappings[0]?.phone_number
-      })));
-    }
-
-    setLoading(false);
-  }
-
-  async function handleSelectMember(member: any) {
-    // Check if thread exists for this phone number
-    const { data: existingThread } = await supabase
-      .from('sms_threads')
-      .select('id')
-      .eq('phone_number', member.phone_number)
-      .single();
-
-    if (existingThread) {
-      // Navigate to existing thread
-      navigate(`/sms/${existingThread.id}`);
-    } else {
-      // Create new thread
-      const { data: newThread, error } = await supabase
-        .from('sms_threads')
-        .insert({
-          phone_number: member.phone_number,
-          member_id: member.id,
-          last_message_at: new Date().toISOString(),
-          last_message_text: 'Ny konversation'
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Failed to create thread:', error);
-        alert('Kunde inte skapa konversation');
-        return;
-      }
-
-      if (newThread) {
-        navigate(`/sms/${newThread.id}`);
-      }
-    }
-
-    onClose();
-  }
-
-  const filteredMembers = members.filter(m =>
-    m.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    m.fortnox_customer_number?.toString().includes(search) ||
-    m.phone_number?.includes(search)
-  );
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content member-selector" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Ny konversation</h2>
-          <button className="close-button" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="search-box">
-          <input
-            type="text"
-            placeholder="Sök medlem (namn, nummer, telefon)..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            autoFocus
-          />
-        </div>
-
-        {loading ? (
-          <div className="loading-state">
-            <div className="spinner"></div>
-            <p>Laddar medlemmar...</p>
-          </div>
-        ) : (
-          <div className="member-list">
-            {filteredMembers.length === 0 ? (
-              <div className="empty-state">
-                <p>Inga medlemmar hittades</p>
-              </div>
-            ) : (
-              filteredMembers.map(member => (
-                <div
-                  key={member.id}
-                  className="member-item"
-                  onClick={() => handleSelectMember(member)}
-                >
-                  <div className="member-avatar">
-                    {member.first_name ? member.first_name.charAt(0).toUpperCase() : '?'}
-                  </div>
-                  <div className="member-info">
-                    <div className="member-name">{member.full_name || 'Okänd medlem'}</div>
-                    <div className="member-details">
-                      {member.fortnox_customer_number && (
-                        <span className="member-number">#{member.fortnox_customer_number}</span>
-                      )}
-                      {member.phone_number && (
-                        <span className="member-phone">{member.phone_number}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

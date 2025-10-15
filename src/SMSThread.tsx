@@ -332,7 +332,7 @@ export function SMSThread() {
           disabled={!newMessage.trim() || sending}
           className="send-button"
         >
-          {sending ? '...' : '📤'}
+          {sending ? '⏳' : '↑'}
         </button>
       </form>
     </div>
