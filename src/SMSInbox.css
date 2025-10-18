@@ -162,6 +162,21 @@
   background: #e0e7ff;
 }
 
+/* Broadcast item styling */
+.broadcast-item-preview {
+  background: #f9fafb;
+  border-left: 4px solid #667eea;
+}
+
+.broadcast-item-preview:hover {
+  background: #f3f4f6;
+}
+
+.broadcast-avatar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  font-size: 1.5rem;
+}
+
 .thread-avatar {
   width: 48px;
   height: 48px;

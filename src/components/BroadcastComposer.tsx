@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import '../SMSThread.css'; // For shared send-button styling
 import './BroadcastComposer.css';
 
 interface Recipient {
@@ -11,12 +10,11 @@ interface Recipient {
 }
 
 interface BroadcastComposerProps {
-  mode?: 'broadcast' | 'conversation';
   onClose: () => void;
   onSent?: (threadId?: string) => void;
 }
 
-export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: BroadcastComposerProps) {
+export function BroadcastComposer({ onClose, onSent }: BroadcastComposerProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -74,11 +72,6 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
   }
 
   function addRecipient(member: any) {
-    // In conversation mode, only allow one recipient
-    if (mode === 'conversation' && recipients.length >= 1) {
-      return;
-    }
-
     const recipient: Recipient = {
       id: member.id,
       name: member.name,
@@ -103,8 +96,8 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
     setSending(true);
 
     try {
-      if (mode === 'conversation') {
-        // For conversation mode, send directly to one recipient
+      if (recipients.length === 1) {
+        // Single recipient - create/use conversation thread
         const recipient = recipients[0];
 
         // Find or create thread
@@ -133,6 +126,11 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
           thread = newThread;
         }
 
+        // Ensure thread exists
+        if (!thread) {
+          throw new Error('Failed to create or find thread');
+        }
+
         // Queue the message
         const { error: queueError } = await supabase
           .from('sms_queue')
@@ -149,9 +147,8 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
 
         console.log(`✅ Message sent to ${recipient.name}`);
         onSent?.(thread.id);
-        onClose();
       } else {
-        // Broadcast mode - original logic
+        // Multiple recipients - create broadcast
         // Create broadcast record
         const { data: broadcast, error: broadcastError } = await supabase
           .from('sms_broadcasts')
@@ -198,8 +195,9 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
 
         console.log(`✅ Broadcast created with ${recipients.length} recipients`);
         onSent?.();
-        onClose();
       }
+
+      onClose();
     } catch (error) {
       console.error('Failed to send:', error);
       alert('Kunde inte skicka meddelandet');
@@ -212,7 +210,7 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content broadcast-composer" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{mode === 'conversation' ? '💬 Ny konversation' : '📢 Ny broadcast'}</h2>
+          <h2>✏️ Nytt meddelande</h2>
           <button className="close-button" onClick={onClose}>✕</button>
         </div>
 
@@ -248,11 +246,11 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
 
             {/* Search results dropdown */}
             {showResults && searchResults.length > 0 && (
-              <div className="search-results">
+              <div className="broadcast-search-results">
                 {searchResults.map(member => (
                   <div
                     key={member.id}
-                    className="search-result-item"
+                    className="broadcast-search-result-item"
                     onClick={() => addRecipient(member)}
                   >
                     <div className="result-avatar">
@@ -271,14 +269,11 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
           </div>
 
           {/* Selected recipients count */}
-          {recipients.length > 0 && mode === 'broadcast' && (
-            <div className="recipient-count">
-              {recipients.length} mottagare valda
-            </div>
-          )}
-          {mode === 'conversation' && recipients.length >= 1 && (
-            <div className="recipient-count" style={{ color: '#48bb78' }}>
-              ✓ Mottagare vald
+          {recipients.length > 0 && (
+            <div className="recipient-count" style={{ color: recipients.length === 1 ? '#48bb78' : '#667eea' }}>
+              {recipients.length === 1
+                ? '✓ 1 mottagare vald'
+                : `📢 ${recipients.length} mottagare valda (gruppmeddelande)`}
             </div>
           )}
 
@@ -307,9 +302,9 @@ export function BroadcastComposer({ mode = 'broadcast', onClose, onSent }: Broad
             className="send-button"
             onClick={handleSend}
             disabled={recipients.length === 0 || !message.trim() || sending}
-            title={mode === 'conversation'
+            title={recipients.length === 1
               ? `Skicka till ${recipients[0]?.name || 'mottagare'}`
-              : `Skicka till ${recipients.length} ${recipients.length === 1 ? 'person' : 'personer'}`
+              : `Skicka till ${recipients.length} personer`
             }
           >
             {sending ? '⏳' : '↑'}

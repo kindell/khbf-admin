@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { ArrowLeft, Mail, Phone, MapPin, CreditCard, Smartphone, Key, Calendar, MessageSquare } from 'lucide-react';
 import { RelatedMembers } from './components/RelatedMembers';
 import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
+import { ConversationItem } from './components/sms/ConversationItem';
 
 interface MemberDetailProps {
   members: Member[];
@@ -76,6 +77,15 @@ interface Invoice {
   InvoiceType: string;
 }
 
+interface ThreadData {
+  id: string;
+  phone_number: string;
+  member_name: string | null;
+  last_message_text: string;
+  last_message_at: string;
+  unread_count: number;
+}
+
 export default function MemberDetail({ members }: MemberDetailProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -86,6 +96,7 @@ export default function MemberDetail({ members }: MemberDetailProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [smsThreadId, setSmsThreadId] = useState<string | null>(null);
+  const [threadData, setThreadData] = useState<ThreadData | null>(null);
 
   const [member, setMember] = useState<Member | null>(null);
 
@@ -160,13 +171,29 @@ export default function MemberDetail({ members }: MemberDetailProps) {
     // Check for SMS thread - look for primary mobile number
     const primaryMobile = phoneData?.find(p => p.is_primary && p.phone_type === 'mobile');
     if (primaryMobile) {
-      const { data: threadData } = await supabase
+      const { data: thread } = await supabase
         .from('sms_threads')
-        .select('id')
+        .select(`
+          id,
+          phone_number,
+          last_message_at,
+          last_message_text,
+          unread_count
+        `)
         .eq('phone_number', primaryMobile.phone_number)
+        .eq('has_user_messages', true)
         .single();
 
-      setSmsThreadId(threadData?.id || null);
+      if (thread) {
+        setSmsThreadId(thread.id);
+        setThreadData({
+          ...thread,
+          member_name: currentMember.full_name
+        });
+      } else {
+        setSmsThreadId(null);
+        setThreadData(null);
+      }
     }
 
     // Collect all email addresses
@@ -480,22 +507,47 @@ export default function MemberDetail({ members }: MemberDetailProps) {
             {phones.some(p => p.phone_type === 'mobile') && (
               <>
                 <Separator />
-                <div className="space-y-2">
-                  <Button
-                    className="w-full"
-                    variant={smsThreadId ? "default" : "outline"}
-                    onClick={() => {
-                      if (smsThreadId) {
-                        navigate(`/sms/${smsThreadId}`);
-                      } else {
-                        navigate('/sms');
-                      }
-                    }}
-                  >
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    {smsThreadId ? 'Visa SMS-konversation' : 'Skicka SMS'}
-                  </Button>
-                </div>
+                {threadData ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">SMS-konversation</p>
+                    <div className="border rounded-lg overflow-hidden">
+                      <ConversationItem
+                        item={{
+                          type: 'thread',
+                          data: threadData
+                        }}
+                        onClick={() => navigate(`/messages/${smsThreadId}`)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => {
+                        const primaryMobile = phones.find(p => p.is_primary && p.phone_type === 'mobile');
+                        if (primaryMobile && member) {
+                          navigate('/messages/new', {
+                            state: {
+                              prefilledRecipient: {
+                                id: member.id,
+                                name: member.full_name,
+                                phone: primaryMobile.phone_number,
+                                type: 'member'
+                              }
+                            }
+                          });
+                        } else {
+                          navigate('/messages/new');
+                        }
+                      }}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Skicka SMS
+                    </Button>
+                  </div>
+                )}
               </>
             )}
 

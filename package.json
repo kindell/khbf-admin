@@ -8,6 +8,7 @@
     "dev:vite": "vite",
     "dev:php": "php -S localhost:8080 -t public",
     "build": "tsc -b && vite build",
+    "build:deploy": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

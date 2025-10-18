@@ -1,0 +1,138 @@
+.search-results {
+  background: #fff;
+  flex: 1;
+  overflow-y: auto;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.search-result-group {
+  border-bottom: 1px solid #F2F2F7;
+}
+
+.search-result-group-header {
+  padding: 8px 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8E8E93;
+  background: #F9F9F9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.search-result-item:hover {
+  background: #F2F2F7;
+}
+
+.search-result-item:active {
+  background: #E8E8ED;
+}
+
+.search-result-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.search-result-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.search-result-name {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #000;
+}
+
+.search-result-time {
+  font-size: 13px;
+  color: #8E8E93;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.search-result-message {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: #3C3C43;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-message mark {
+  background: rgba(255, 235, 59, 0.4);
+  color: inherit;
+  padding: 2px 0;
+  border-radius: 2px;
+}
+
+/* Empty states */
+.search-empty,
+.search-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #8E8E93;
+}
+
+.search-empty-icon {
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.search-empty p,
+.search-no-results p {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #000;
+  margin: 0;
+}
+
+.search-hint {
+  font-size: 15px !important;
+  font-weight: 400 !important;
+  color: #8E8E93 !important;
+  margin-top: 8px !important;
+}

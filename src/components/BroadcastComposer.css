@@ -86,7 +86,7 @@
 }
 
 /* Search results dropdown */
-.search-results {
+.broadcast-search-results {
   position: absolute;
   top: 100%;
   left: 0;
@@ -101,7 +101,7 @@
   z-index: 100;
 }
 
-.search-result-item {
+.broadcast-search-result-item {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -110,7 +110,7 @@
   transition: background 0.2s;
 }
 
-.search-result-item:hover {
+.broadcast-search-result-item:hover {
   background: #f7fafc;
 }
 

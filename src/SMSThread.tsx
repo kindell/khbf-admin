@@ -1,17 +1,25 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import './SMSThread.css';
+import { MobileContainer } from './components/layout/MobileContainer';
+import { MessageBubble } from './components/sms/MessageBubble';
+import { ThreadHeader } from './components/sms/ThreadHeader';
+import { MessageInput } from './components/sms/MessageInput';
+import { ConversationInfo } from './components/sms/ConversationInfo';
+import { groupMessages } from './lib/messageGrouping';
+import { useSidebar } from './contexts/SidebarContext';
 
 interface SMS {
   id: string;
   direction: 'inbound' | 'outbound';
   message: string;
   created_at: string;
-  status: string;
+  status: 'pending' | 'sent' | 'delivered' | 'failed';
   sent_at: string | null;
   received_at: string | null;
   is_system?: boolean;
+  is_broadcast?: boolean;
+  broadcast_recipient_count?: number;
 }
 
 interface ThreadInfo {
@@ -23,19 +31,25 @@ interface ThreadInfo {
 export function SMSThread() {
   const { threadId } = useParams();
   const navigate = useNavigate();
+  const { openSidebar } = useSidebar();
   const [messages, setMessages] = useState<SMS[]>([]);
   const [threadInfo, setThreadInfo] = useState<ThreadInfo | null>(null);
-  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [deletingMessage, setDeletingMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessageCount, setNewMessageCount] = useState(0);
+  const [showConversationInfo, setShowConversationInfo] = useState(false);
+  const previousMessageCountRef = useRef(0);
+
+  // Group messages using Apple Messages style grouping
+  const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
 
   useEffect(() => {
     if (!threadId) return;
 
     loadThread();
-    loadMessages();
     markAsRead();
 
     // Realtime updates for new messages and status changes
@@ -50,13 +64,17 @@ export function SMSThread() {
         },
         (payload) => {
           console.log('📨 New SMS received via realtime:', payload.new);
+          const newMsg = payload.new as SMS;
+
+          // Don't show system messages
+          if (newMsg.is_system) return;
+
           setMessages(prev => {
             // Check if message already exists (optimistic update)
-            const exists = prev.some(msg => msg.id === payload.new.id);
+            const exists = prev.some(msg => msg.id === newMsg.id);
             if (exists) return prev;
-            return [...prev, payload.new as SMS];
+            return [...prev, newMsg];
           });
-          scrollToBottom();
         }
       )
       .on('postgres_changes',
@@ -92,12 +110,45 @@ export function SMSThread() {
     };
   }, [threadId]);
 
+  // Auto-scroll on new message if at bottom, otherwise show indicator
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // Only react to NEW messages, not to isAtBottom changes
+    if (messages.length > previousMessageCountRef.current) {
+      const lastMessage = messages[messages.length - 1];
+      const isOwnMessage = lastMessage.direction === 'outbound';
 
-  function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      if (isOwnMessage) {
+        // Always scroll for own messages
+        scrollToBottom();
+      } else if (isAtBottom) {
+        // Scroll for incoming if at bottom
+        scrollToBottom();
+      } else {
+        // Show new message indicator
+        setNewMessageCount((prev) => prev + 1);
+      }
+
+      previousMessageCountRef.current = messages.length;
+    }
+  }, [messages, isAtBottom]);
+
+  function scrollToBottom(smooth = true) {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto'
+    });
+  }
+
+  // Check if user is at bottom
+  function handleScroll() {
+    if (!containerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+    setIsAtBottom(atBottom);
+    if (atBottom) {
+      setNewMessageCount(0);
+    }
   }
 
   async function loadThread() {
@@ -115,26 +166,76 @@ export function SMSThread() {
       .single();
 
     if (data) {
-      setThreadInfo({
+      const members = data.members as any;
+      const info = {
         phone_number: data.phone_number,
         member_id: data.member_id,
-        member_name: data.members ?
-          `${data.members.first_name} ${data.members.last_name}` :
+        member_name: members ?
+          `${members.first_name} ${members.last_name}` :
           null
-      });
+      };
+      setThreadInfo(info);
+
+      // Load messages after we have thread info
+      loadMessagesWithInfo(info);
     }
   }
 
-  async function loadMessages() {
-    const { data } = await supabase
+  async function loadMessagesWithInfo(info: ThreadInfo) {
+    // Load messages in this thread (individual conversation messages)
+    const { data: threadMessages } = await supabase
       .from('sms_queue')
       .select('*')
       .eq('thread_id', threadId)
+      .or('is_system.is.null,is_system.eq.false')  // Exclude system messages
       .order('created_at', { ascending: true });
 
-    setMessages(data || []);
+    // Also load broadcast messages sent to this phone number using broadcast_id
+    const { data: broadcastMessages } = await supabase
+      .from('sms_queue')
+      .select('*')
+      .eq('phone_number', info.phone_number)
+      .eq('direction', 'outbound')
+      .not('broadcast_id', 'is', null)
+      .or('is_system.is.null,is_system.eq.false')
+      .order('created_at', { ascending: true });
+
+    // For each broadcast message, get recipient count from the broadcast
+    const messagesWithBroadcastInfo = await Promise.all(
+      (broadcastMessages || []).map(async (msg) => {
+        if (msg.broadcast_id) {
+          // Get the recipient count from the broadcast
+          const { data: broadcast } = await supabase
+            .from('sms_broadcasts')
+            .select('recipient_count')
+            .eq('id', msg.broadcast_id)
+            .single();
+
+          return {
+            ...msg,
+            is_broadcast: true,
+            broadcast_recipient_count: broadcast?.recipient_count || 1
+          };
+        }
+
+        return {
+          ...msg,
+          is_broadcast: true,
+          broadcast_recipient_count: 1
+        };
+      })
+    );
+
+    // Combine and sort by time
+    const allMessages = [
+      ...(threadMessages || []),
+      ...messagesWithBroadcastInfo
+    ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    setMessages(allMessages);
     setLoading(false);
   }
+
 
   async function markAsRead() {
     await supabase
@@ -143,9 +244,8 @@ export function SMSThread() {
       .eq('id', threadId);
   }
 
-  async function sendMessage(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newMessage.trim() || !threadInfo) return;
+  async function sendMessage(messageText: string) {
+    if (!messageText.trim() || !threadInfo) return;
 
     setSending(true);
 
@@ -155,7 +255,7 @@ export function SMSThread() {
         .insert({
           direction: 'outbound',
           phone_number: threadInfo.phone_number,
-          message: newMessage.trim(),
+          message: messageText.trim(),
           status: 'pending',
           thread_id: threadId
         })
@@ -166,10 +266,8 @@ export function SMSThread() {
 
       // Optimistically add message to the list immediately
       if (data) {
-        setMessages(prev => [...prev, data as SMS]);
+        setMessages((prev) => [...prev, data as SMS]);
       }
-
-      setNewMessage('');
     } catch (error) {
       console.error('Failed to send message:', error);
       alert('Kunde inte skicka meddelandet');
@@ -178,163 +276,88 @@ export function SMSThread() {
     }
   }
 
-  function formatMessageTime(dateString: string) {
-    return new Date(dateString).toLocaleTimeString('sv-SE', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
-
-  async function deleteMessage(messageId: string) {
-    if (!confirm('Är du säker på att du vill radera detta meddelande?')) return;
-
-    setDeletingMessage(messageId);
-
-    try {
-      const { error } = await supabase
-        .from('sms_queue')
-        .delete()
-        .eq('id', messageId);
-
-      if (error) throw error;
-
-      // Remove from UI
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-    } catch (error) {
-      console.error('Failed to delete message:', error);
-      alert('Kunde inte radera meddelandet');
-    } finally {
-      setDeletingMessage(null);
-    }
-  }
-
-  async function deleteThread() {
-    if (!confirm('Är du säker på att du vill radera hela tråden? Detta kan inte ångras.')) return;
-
-    try {
-      // First delete all messages in the thread
-      const { error: messagesError } = await supabase
-        .from('sms_queue')
-        .delete()
-        .eq('thread_id', threadId);
-
-      if (messagesError) throw messagesError;
-
-      // Then delete the thread itself
-      const { error: threadError } = await supabase
-        .from('sms_threads')
-        .delete()
-        .eq('id', threadId);
-
-      if (threadError) throw threadError;
-
-      // Navigate back to inbox
-      navigate('/sms');
-    } catch (error) {
-      console.error('Failed to delete thread:', error);
-      alert('Kunde inte radera tråden');
-    }
-  }
-
   if (loading) {
     return (
-      <div className="sms-thread-container">
-        <div className="loading-state">
-          <div className="spinner"></div>
+      <MobileContainer>
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div className="w-10 h-10 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
           <p>Laddar konversation...</p>
         </div>
-      </div>
+      </MobileContainer>
     );
   }
 
   return (
-    <div className="sms-thread-container">
-      <div className="thread-header">
-        <button className="back-button" onClick={() => navigate('/sms')}>
-          ← Tillbaka
-        </button>
-        <div className="thread-info">
-          <h2>{threadInfo?.member_name || threadInfo?.phone_number}</h2>
-          {threadInfo?.member_name && (
-            <span className="phone-number">{threadInfo.phone_number}</span>
-          )}
-        </div>
-        <div className="thread-actions">
-          {threadInfo?.member_id && (
-            <button
-              className="view-profile-button"
-              onClick={() => navigate(`/medlem/${threadInfo.member_id}`)}
-            >
-              Visa profil
-            </button>
-          )}
-          <button
-            className="delete-thread-button"
-            onClick={deleteThread}
-            title="Radera tråd"
-          >
-            🗑️
-          </button>
-        </div>
-      </div>
+    <MobileContainer className="overflow-hidden">
+      {/* Thread Header */}
+      <ThreadHeader
+        contactName={threadInfo?.member_name || ''}
+        phoneNumber={threadInfo?.phone_number || ''}
+        subtitle={threadInfo?.member_name ? threadInfo.phone_number : undefined}
+        onBack={() => navigate('/messages', { state: { animationDirection: 'back' } })}
+        onMenu={openSidebar}
+        onInfo={() => setShowConversationInfo(true)}
+      />
 
-      <div className="messages-container">
-        <div className="messages-list">
+      {/* Messages */}
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-50 w-full"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div className="py-4 px-6 w-full box-border">
           {messages.length === 0 ? (
-            <div className="empty-messages">
+            <div className="text-center py-15 px-5 text-gray-400">
               <p>Inga meddelanden än. Skicka det första!</p>
             </div>
           ) : (
-            messages.map(msg => (
-              <div
+            groupedMessages.map((msg) => (
+              <MessageBubble
                 key={msg.id}
-                className={`message ${msg.direction} ${deletingMessage === msg.id ? 'deleting' : ''}`}
-              >
-                <div className="message-bubble">
-                  <button
-                    className="delete-message-button"
-                    onClick={() => deleteMessage(msg.id)}
-                    disabled={deletingMessage === msg.id}
-                    title="Radera meddelande"
-                  >
-                    ✕
-                  </button>
-                  <div className="message-text">{msg.message}</div>
-                  <div className="message-meta">
-                    <span className="message-time">
-                      {formatMessageTime(msg.created_at)}
-                    </span>
-                    {msg.direction === 'outbound' && (
-                      <span className={`message-status status-${msg.status}`}>
-                        {msg.status === 'sent' ? '✓' : msg.status === 'pending' ? '○' : '✗'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+                message={msg.message}
+                direction={msg.direction}
+                timestamp={msg.created_at}
+                status={msg.status}
+                isFirstInGroup={msg.isFirstInGroup}
+                isLastInGroup={msg.isLastInGroup}
+                showTimestampOnLoad={msg.showTimestampOnLoad}
+              />
             ))
           )}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      <form onSubmit={sendMessage} className="compose-area">
-        <input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Skriv ett meddelande..."
-          disabled={sending}
-          className="message-input"
-        />
+      {/* New message indicator */}
+      {!isAtBottom && newMessageCount > 0 && (
         <button
-          type="submit"
-          disabled={!newMessage.trim() || sending}
-          className="send-button"
+          onClick={() => scrollToBottom()}
+          className="fixed bottom-[70px] right-5 bg-blue-500 text-white py-2.5 px-5 rounded-[20px] border-none font-semibold text-sm cursor-pointer shadow-lg hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 transition-all z-[100]"
         >
-          {sending ? '⏳' : '↑'}
+          {newMessageCount} new message{newMessageCount > 1 ? 's' : ''}
         </button>
-      </form>
-    </div>
+      )}
+
+      {/* Message Input */}
+      <MessageInput
+        onSend={(msg) => {
+          sendMessage(msg);
+        }}
+        disabled={sending}
+      />
+
+      {/* Conversation Info */}
+      {showConversationInfo && threadInfo && (
+        <ConversationInfo
+          phoneNumber={threadInfo.phone_number}
+          memberName={threadInfo.member_name}
+          memberId={threadInfo.member_id}
+          threadId={threadId!}
+          onClose={() => setShowConversationInfo(false)}
+          onDelete={() => navigate('/messages', { state: { animationDirection: 'back' } })}
+        />
+      )}
+    </MobileContainer>
   );
 }

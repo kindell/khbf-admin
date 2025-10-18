@@ -68,12 +68,21 @@ export default function ParakeyMapping() {
       allMappings?.map(m => m.parakey_email.toLowerCase()) || []
     );
 
+    console.log('Mapped emails set (lowercase):', Array.from(mappedEmails));
+
     // Filter to only unmapped users
-    const unmapped = parakeyUsers?.filter(
-      u => !mappedEmails.has(u.email.toLowerCase())
-    ) || [];
+    const unmapped = parakeyUsers?.filter(u => {
+      const isUnmapped = !mappedEmails.has(u.email.toLowerCase());
+      if (!isUnmapped) {
+        console.log(`✓ ${u.email} is already mapped`);
+      }
+      return isUnmapped;
+    }) || [];
 
     console.log(`Found ${unmapped.length} unmapped users out of ${parakeyUsers?.length} total parakey users`);
+    if (unmapped.length > 0) {
+      console.log('Unmapped emails:', unmapped.map(u => u.email));
+    }
 
     // Get visit counts for each unmapped user (last 30 days)
     const unmappedWithVisits = await Promise.all(
@@ -166,12 +175,16 @@ export default function ParakeyMapping() {
 
     alert(`✅ Mappning skapad!\n${parakeyUser.email} → ${member.email}`);
 
-    // Reset and refresh
+    // Reset and refresh after a small delay to ensure DB has updated
     setSelectedParakey(null);
     setSelectedMember(null);
     setMemberSearch('');
     setSaving(false);
-    fetchData();
+
+    // Wait 500ms before refreshing to ensure database consistency
+    setTimeout(() => {
+      fetchData();
+    }, 500);
   }
 
   if (loading) {

@@ -92,7 +92,7 @@ export function BroadcastList() {
         <div
           key={broadcast.id}
           className="broadcast-item"
-          onClick={() => navigate(`/sms/broadcast/${broadcast.id}`)}
+          onClick={() => navigate(`/messages/group/${broadcast.id}`)}
         >
           <div className="broadcast-icon">📤</div>
           <div className="broadcast-content">

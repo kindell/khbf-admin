@@ -15,7 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-require_once __DIR__ . '/../../config/supabase.php';
+// Load config - try production path first, then development path
+if (file_exists(__DIR__ . '/../config/supabase.php')) {
+    require_once __DIR__ . '/../config/supabase.php';  // Production (dist/api → dist/config)
+} else {
+    require_once __DIR__ . '/../../config/supabase.php';  // Development (public/api → config)
+}
 
 // Get action from query parameter
 $action = $_GET['action'] ?? '';

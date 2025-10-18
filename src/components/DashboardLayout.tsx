@@ -1,15 +1,19 @@
 import { ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { Users, Key, Activity, Settings, MessageSquare, LogOut } from 'lucide-react';
+import { MobileHeader } from './layout/MobileHeader';
+import { useSidebar } from '../contexts/SidebarContext';
 
 interface DashboardLayoutProps {
   children: ReactNode;
   userName?: string;
   onLogout?: () => void;
+  title?: string;
 }
 
-export function DashboardLayout({ children, userName, onLogout }: DashboardLayoutProps) {
+export function DashboardLayout({ children, userName, onLogout, title = 'KHBF Admin' }: DashboardLayoutProps) {
   const location = useLocation();
+  const { sidebarOpen, openSidebar, closeSidebar } = useSidebar();
 
   function isActive(path: string) {
     if (path === '/') {
@@ -19,39 +23,61 @@ export function DashboardLayout({ children, userName, onLogout }: DashboardLayou
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-col lg:flex-row h-screen bg-background">
+      {/* Mobile Header (only on pages with title) */}
+      <MobileHeader title={title} onMenuClick={openSidebar} />
+
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/30 z-[150] transition-opacity"
+          onClick={closeSidebar}
+          aria-label="Stäng meny"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-card flex flex-col">
+      <aside className={`
+        w-64 border-r bg-card flex flex-col
+        fixed lg:static
+        inset-y-0 left-0
+        z-[200]
+        transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         <div className="p-6">
           <h1 className="text-2xl font-bold text-primary">KHBF Admin</h1>
           <p className="text-sm text-muted-foreground">Medlemshantering</p>
         </div>
 
         <nav className="space-y-1 px-3 flex-1">
-          <a
-            href="/"
+          <Link
+            to="/"
+            onClick={closeSidebar}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              isActive('/') && !isActive('/sms')
+              isActive('/') && !isActive('/messages')
                 ? 'bg-accent text-accent-foreground'
                 : 'hover:bg-accent hover:text-accent-foreground'
             }`}
           >
             <Users className="h-4 w-4" />
             Medlemmar
-          </a>
-          <a
-            href="/sms"
+          </Link>
+          <Link
+            to="/messages"
+            onClick={closeSidebar}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              isActive('/sms')
+              isActive('/messages')
                 ? 'bg-accent text-accent-foreground'
                 : 'hover:bg-accent hover:text-accent-foreground'
             }`}
           >
             <MessageSquare className="h-4 w-4" />
-            SMS Inbox
-          </a>
-          <a
-            href="/parakey-mapping"
+            Meddelanden
+          </Link>
+          <Link
+            to="/parakey-mapping"
+            onClick={closeSidebar}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               isActive('/parakey-mapping')
                 ? 'bg-accent text-accent-foreground'
@@ -60,9 +86,10 @@ export function DashboardLayout({ children, userName, onLogout }: DashboardLayou
           >
             <Key className="h-4 w-4" />
             Parakey Mapping
-          </a>
-          <a
-            href="/visits"
+          </Link>
+          <Link
+            to="/visits"
+            onClick={closeSidebar}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               isActive('/visits')
                 ? 'bg-accent text-accent-foreground'
@@ -71,9 +98,10 @@ export function DashboardLayout({ children, userName, onLogout }: DashboardLayou
           >
             <Activity className="h-4 w-4" />
             Besök
-          </a>
-          <a
-            href="/settings"
+          </Link>
+          <Link
+            to="/settings"
+            onClick={closeSidebar}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               isActive('/settings')
                 ? 'bg-accent text-accent-foreground'
@@ -82,13 +110,13 @@ export function DashboardLayout({ children, userName, onLogout }: DashboardLayou
           >
             <Settings className="h-4 w-4" />
             Inställningar
-          </a>
+          </Link>
         </nav>
 
         {/* User info and logout */}
         {userName && onLogout && (
-          <div className="p-4 border-t">
-            <div className="flex items-center justify-between">
+          <div className="min-h-[72px] p-4 border-t flex items-center flex-shrink-0">
+            <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <span className="text-sm font-medium text-primary">

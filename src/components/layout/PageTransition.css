@@ -1,0 +1,46 @@
+/* iOS-style page transitions - only on mobile */
+@media (max-width: 1023px) {
+  /* Forward navigation - slide in from right */
+  .page-slide-in-right {
+    animation: slideInFromRight 0.35s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+  }
+
+  /* Back navigation - slide out to right */
+  .page-slide-out-right {
+    animation: slideOutToRight 0.35s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+  }
+
+  /* Browser back - slide in from left (unused now but kept for reference) */
+  .page-slide-in-left {
+    animation: slideInFromLeft 0.35s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+  }
+
+  @keyframes slideInFromRight {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slideOutToRight {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes slideInFromLeft {
+    from {
+      transform: translateX(-33%);
+      filter: brightness(0.85);
+    }
+    to {
+      transform: translateX(0);
+      filter: brightness(1);
+    }
+  }
+}

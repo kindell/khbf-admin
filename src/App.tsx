@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { supabase, type Member } from './lib/supabase';
-import MemberList from './MemberList';
-import MemberDetail from './MemberDetail';
-import ParakeyMapping from './ParakeyMapping';
-import { SMSInbox } from './SMSInbox';
-import { SMSThread } from './SMSThread';
-import { BroadcastDetail } from './components/BroadcastDetail';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AdminLogin } from './components/AdminLogin';
 import { StatsCard } from './components/StatsCard';
 import { Users, UserCheck, Activity, TrendingUp } from 'lucide-react';
+import { usePageTitle } from './hooks/usePageTitle';
+import { SidebarProvider } from './contexts/SidebarContext';
+
+// Lazy load heavy components
+const MemberList = lazy(() => import('./MemberList'));
+const MemberDetail = lazy(() => import('./MemberDetail'));
+const ParakeyMapping = lazy(() => import('./ParakeyMapping'));
+const SMSInbox = lazy(() => import('./SMSInbox').then(module => ({ default: module.SMSInbox })));
+const SMSThread = lazy(() => import('./SMSThread').then(module => ({ default: module.SMSThread })));
+const GroupDetail = lazy(() => import('./components/GroupDetail').then(module => ({ default: module.GroupDetail })));
+const NewMessage = lazy(() => import('./components/NewMessage').then(module => ({ default: module.NewMessage })));
 
 export type Period = 'week' | 'month' | '3months';
 
@@ -18,6 +23,7 @@ const SESSION_STORAGE_KEY = 'khbf_admin_session';
 
 function App() {
   const location = useLocation();
+  const pageTitle = usePageTitle();
 
   // Auth state
   const [session, setSession] = useState<{
@@ -276,11 +282,13 @@ function App() {
   // Logged in - show admin app
   if (loading) {
     return (
-      <DashboardLayout userName={session.memberName} onLogout={handleLogout}>
-        <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Laddar medlemmar...</p>
-        </div>
-      </DashboardLayout>
+      <SidebarProvider>
+        <DashboardLayout userName={session.memberName} onLogout={handleLogout} title={pageTitle}>
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Laddar medlemmar...</p>
+          </div>
+        </DashboardLayout>
+      </SidebarProvider>
     );
   }
 
@@ -291,72 +299,84 @@ function App() {
   const avgVisitsPerMember = totalMembers > 0 ? Math.round(totalVisitsThisMonth / totalMembers) : 0;
 
   return (
-    <DashboardLayout userName={session.memberName} onLogout={handleLogout}>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <>
-              {/* Stats Cards */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-                <StatsCard
-                  title="Totalt Medlemmar"
-                  value={totalMembers}
-                  description="Aktiva medlemmar i systemet"
-                  icon={Users}
-                />
-                <StatsCard
-                  title="Med Access"
-                  value={activeMembers}
-                  description="Medlemmar med Aptus eller Parakey"
-                  icon={UserCheck}
-                />
-                <StatsCard
-                  title="Besök (30 dagar)"
-                  value={totalVisitsThisMonth}
-                  description="Totalt antal besök senaste månaden"
-                  icon={Activity}
-                />
-                <StatsCard
-                  title="Genomsnittligt Besök"
-                  value={avgVisitsPerMember}
-                  description="Per medlem senaste månaden"
-                  icon={TrendingUp}
-                />
-              </div>
+    <SidebarProvider>
+      <DashboardLayout userName={session.memberName} onLogout={handleLogout} title={pageTitle}>
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        }>
+          <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                {/* Stats Cards - horizontal scroll on mobile, grid on desktop */}
+                <div className="flex gap-4 overflow-x-auto pb-2 mb-6 lg:grid lg:grid-cols-4 lg:overflow-visible">
+                  <StatsCard
+                    title="Totalt Medlemmar"
+                    value={totalMembers}
+                    description="Aktiva medlemmar i systemet"
+                    icon={Users}
+                  />
+                  <StatsCard
+                    title="Med Access"
+                    value={activeMembers}
+                    description="Medlemmar med Aptus eller Parakey"
+                    icon={UserCheck}
+                  />
+                  <StatsCard
+                    title="Besök (30 dagar)"
+                    value={totalVisitsThisMonth}
+                    description="Totalt antal besök senaste månaden"
+                    icon={Activity}
+                  />
+                  <StatsCard
+                    title="Genomsnittligt Besök"
+                    value={avgVisitsPerMember}
+                    description="Per medlem senaste månaden"
+                    icon={TrendingUp}
+                  />
+                </div>
 
-              <MemberList
-                members={members}
-                period={period}
-                setPeriod={setPeriod}
-                search={search}
-                setSearch={setSearch}
-              />
-            </>
-          }
-        />
-        <Route
-          path="/medlem/:id"
-          element={<MemberDetail members={members} />}
-        />
-        <Route
-          path="/parakey-mapping"
-          element={<ParakeyMapping />}
-        />
-        <Route
-          path="/sms"
-          element={<SMSInbox adminMemberId={session.memberId} adminMemberName={session.memberName} />}
-        />
-        <Route
-          path="/sms/:threadId"
-          element={<SMSThread />}
-        />
-        <Route
-          path="/sms/broadcast/:broadcastId"
-          element={<BroadcastDetail />}
-        />
-      </Routes>
-    </DashboardLayout>
+                <MemberList
+                  members={members}
+                  period={period}
+                  setPeriod={setPeriod}
+                  search={search}
+                  setSearch={setSearch}
+                />
+              </>
+            }
+          />
+          <Route
+            path="/medlem/:id"
+            element={<MemberDetail members={members} />}
+          />
+          <Route
+            path="/parakey-mapping"
+            element={<ParakeyMapping />}
+          />
+          <Route
+            path="/messages"
+            element={<SMSInbox adminMemberId={session.memberId} adminMemberName={session.memberName} />}
+          />
+          <Route
+            path="/messages/new"
+            element={<NewMessage />}
+          />
+          <Route
+            path="/messages/group/:groupId"
+            element={<GroupDetail />}
+          />
+          <Route
+            path="/messages/:threadId"
+            element={<SMSThread />}
+          />
+          </Routes>
+        </Suspense>
+      </DashboardLayout>
+    </SidebarProvider>
   );
 }
 
