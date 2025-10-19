@@ -21,6 +21,13 @@ export type Period = 'week' | 'month' | '3months';
 
 const SESSION_STORAGE_KEY = 'khbf_admin_session';
 
+// Simple in-memory cache with 5-minute TTL
+let membersCache: {
+  data: Member[];
+  timestamp: number;
+} | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 function App() {
   const location = useLocation();
   const pageTitle = usePageTitle();
@@ -93,176 +100,234 @@ function App() {
     localStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
-  async function fetchMembers(showLoading = true) {
-    if (showLoading) setLoading(true);
-
-    // Fetch ALL members from members table (remove default 1000 limit)
+  // Helper: Fetch all members with pagination
+  async function fetchAllMembers() {
     let allMembers: any[] = [];
-    let memberFrom = 0;
-    const memberPageSize = 1000;
-
-    while (true) {
-      const { data: membersPage, error } = await supabase
-        .from('members')
-        .select('*')
-        .order('fortnox_customer_number')
-        .range(memberFrom, memberFrom + memberPageSize - 1);
-
-      if (error) {
-        console.error('Error fetching members:', error);
-        setLoading(false);
-        return;
-      }
-
-      if (!membersPage || membersPage.length === 0) break;
-      allMembers = allMembers.concat(membersPage);
-      if (membersPage.length < memberPageSize) break;
-      memberFrom += memberPageSize;
-    }
-
-    const membersData = allMembers;
-    console.log(`Loaded ${membersData.length} members`);
-
-    // Fetch visit counts for last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    // Fetch ALL visits (remove default 1000 limit)
-    let allVisits: any[] = [];
     let from = 0;
     const pageSize = 1000;
 
     while (true) {
-      const { data: visits } = await supabase
-        .from('visits')
-        .select('userid')
-        .gte('eventtime', thirtyDaysAgo.toISOString())
+      const { data, error } = await supabase
+        .from('members')
+        .select('*')
+        .order('fortnox_customer_number')
         .range(from, from + pageSize - 1);
 
-      if (!visits || visits.length === 0) break;
-      allVisits = allVisits.concat(visits);
-      if (visits.length < pageSize) break;
+      if (error) {
+        console.error('Error fetching members:', error);
+        break;
+      }
+
+      if (!data || data.length === 0) break;
+      allMembers = allMembers.concat(data);
+      if (data.length < pageSize) break;
       from += pageSize;
     }
 
-    // Count visits per user
-    const visitCounts = new Map<string, number>();
-    allVisits.forEach(v => {
-      visitCounts.set(v.userid, (visitCounts.get(v.userid) || 0) + 1);
-    });
+    return allMembers;
+  }
 
-    console.log(`Loaded ${allVisits.length} visits from last 30 days`);
+  // Helper: Fetch all visits with pagination
+  async function fetchAllVisits(thirtyDaysAgo: Date) {
+    const recentVisits: any[] = [];
+    const allVisits: any[] = [];
 
-    // Fetch all phone numbers with type
-    const { data: phoneData } = await supabase
-      .from('phone_mappings')
-      .select('member_id, phone_number, phone_type, is_primary')
-      .eq('is_primary', true);
+    // Collect all member user IDs first for targeted query
+    const { data: membersData } = await supabase
+      .from('members')
+      .select('aptus_user_id, parakey_user_id')
+      .neq('is_system_account', true);
 
-    const phoneMap = new Map<string, { phone: string; type: string }>();
-    phoneData?.forEach(p => {
-      phoneMap.set(p.member_id, { phone: p.phone_number, type: p.phone_type });
-    });
-
-    // Fetch member relations (for medbadare detection)
-    const { data: relationsData } = await supabase
-      .from('member_relations')
-      .select('medbadare_member_id, primary_member_id');
-
-    const relationsMap = new Map<string, string[]>();
-    relationsData?.forEach(r => {
-      const existing = relationsMap.get(r.medbadare_member_id) || [];
-      existing.push(r.primary_member_id);
-      relationsMap.set(r.medbadare_member_id, existing);
-    });
-
-    // Collect all user IDs for visit stats lookup
     const allUserIds = new Set<string>();
-    membersData.forEach(m => {
+    membersData?.forEach(m => {
       if (m.aptus_user_id) allUserIds.add(m.aptus_user_id);
       if (m.parakey_user_id) allUserIds.add(m.parakey_user_id);
     });
 
-    // Fetch total visit counts and last visit per user
-    const totalVisitsMap = new Map<string, number>();
-    const lastVisitMap = new Map<string, string>();
+    if (allUserIds.size === 0) {
+      return { recent: [], all: [] };
+    }
 
-    if (allUserIds.size > 0) {
-      const userIdArray = Array.from(allUserIds);
+    const userIdArray = Array.from(allUserIds);
 
-      // Fetch ALL visits for these users with pagination
-      let allUserVisits: any[] = [];
-      let from = 0;
-      const pageSize = 1000;
+    // Fetch recent visits (last 30 days) in parallel with all visits
+    const [recentResult, allResult] = await Promise.all([
+      // Recent visits (for 30-day stats)
+      (async () => {
+        let visits: any[] = [];
+        let from = 0;
+        const pageSize = 1000;
 
-      while (true) {
-        const { data: visits } = await supabase
-          .from('visits')
-          .select('userid, eventtime')
-          .in('userid', userIdArray)
-          .order('eventtime', { ascending: false })
-          .range(from, from + pageSize - 1);
+        while (true) {
+          const { data } = await supabase
+            .from('visits')
+            .select('userid')
+            .in('userid', userIdArray)
+            .gte('eventtime', thirtyDaysAgo.toISOString())
+            .range(from, from + pageSize - 1);
 
-        if (!visits || visits.length === 0) break;
-        allUserVisits = allUserVisits.concat(visits);
-        if (visits.length < pageSize) break;
-        from += pageSize;
-      }
+          if (!data || data.length === 0) break;
+          visits = visits.concat(data);
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+        return visits;
+      })(),
 
-      // Count total visits and find last visit per user
-      allUserVisits.forEach(v => {
-        // Count total
+      // All visits (for total count and last visit)
+      (async () => {
+        let visits: any[] = [];
+        let from = 0;
+        const pageSize = 1000;
+
+        while (true) {
+          const { data } = await supabase
+            .from('visits')
+            .select('userid, eventtime')
+            .in('userid', userIdArray)
+            .order('eventtime', { ascending: false })
+            .range(from, from + pageSize - 1);
+
+          if (!data || data.length === 0) break;
+          visits = visits.concat(data);
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+        return visits;
+      })()
+    ]);
+
+    return { recent: recentResult, all: allResult };
+  }
+
+  async function fetchMembers(showLoading = true) {
+    // Check cache first
+    if (membersCache && (Date.now() - membersCache.timestamp) < CACHE_TTL) {
+      console.log('✅ Using cached members data');
+      setMembers(membersCache.data);
+      setLoading(false);
+      return;
+    }
+
+    if (showLoading) setLoading(true);
+
+    const startTime = performance.now();
+
+    try {
+      // Calculate 30 days ago once
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      // Run all queries in parallel for maximum performance
+      const [membersResult, visitsResult, phoneResult, relationsResult] = await Promise.all([
+        // 1. Fetch all members (paginated)
+        fetchAllMembers(),
+
+        // 2. Fetch visits from last 30 days (paginated)
+        fetchAllVisits(thirtyDaysAgo),
+
+        // 3. Fetch phone numbers
+        supabase
+          .from('phone_mappings')
+          .select('member_id, phone_number, phone_type, is_primary')
+          .eq('is_primary', true),
+
+        // 4. Fetch member relations
+        supabase
+          .from('member_relations')
+          .select('medbadare_member_id, primary_member_id')
+      ]);
+
+      const membersData = membersResult;
+      console.log(`✅ Loaded ${membersData.length} members`);
+
+      // Process visits
+      const { recent: recentVisits, all: allVisits } = visitsResult;
+
+      // Count visits per user for last 30 days
+      const visitCounts = new Map<string, number>();
+      recentVisits.forEach(v => {
+        visitCounts.set(v.userid, (visitCounts.get(v.userid) || 0) + 1);
+      });
+
+      // Count total visits and find last visit
+      const totalVisitsMap = new Map<string, number>();
+      const lastVisitMap = new Map<string, string>();
+      allVisits.forEach(v => {
         totalVisitsMap.set(v.userid, (totalVisitsMap.get(v.userid) || 0) + 1);
-
-        // Track last visit (visits are already sorted by eventtime desc)
         if (!lastVisitMap.has(v.userid)) {
           lastVisitMap.set(v.userid, v.eventtime);
         }
       });
 
-      console.log(`Loaded ${allUserVisits.length} total visits for ${totalVisitsMap.size} users`);
+      console.log(`✅ Loaded ${recentVisits.length} recent visits, ${allVisits.length} total visits`);
+
+      // Build phone map
+      const phoneMap = new Map<string, { phone: string; type: string }>();
+      phoneResult.data?.forEach(p => {
+        phoneMap.set(p.member_id, { phone: p.phone_number, type: p.phone_type });
+      });
+
+      // Build relations map
+      const relationsMap = new Map<string, string[]>();
+      relationsResult.data?.forEach(r => {
+        const existing = relationsMap.get(r.medbadare_member_id) || [];
+        existing.push(r.primary_member_id);
+        relationsMap.set(r.medbadare_member_id, existing);
+      });
+
+      // Merge member data with visit counts and phone numbers
+      const membersWithVisits = membersData
+        .filter(m => !m.is_system_account)
+        .map(m => {
+          const phoneInfo = phoneMap.get(m.id);
+
+          // Calculate total visits from both aptus and parakey
+          const totalVisits =
+            (m.aptus_user_id ? totalVisitsMap.get(m.aptus_user_id) || 0 : 0) +
+            (m.parakey_user_id ? totalVisitsMap.get(m.parakey_user_id) || 0 : 0);
+
+          // Find most recent visit from either system
+          const aptusLastVisit = m.aptus_user_id ? lastVisitMap.get(m.aptus_user_id) : null;
+          const parakeyLastVisit = m.parakey_user_id ? lastVisitMap.get(m.parakey_user_id) : null;
+          let lastVisit = null;
+
+          if (aptusLastVisit && parakeyLastVisit) {
+            lastVisit = aptusLastVisit > parakeyLastVisit ? aptusLastVisit : parakeyLastVisit;
+          } else {
+            lastVisit = aptusLastVisit || parakeyLastVisit;
+          }
+
+          return {
+            ...m,
+            full_name: `${m.first_name} ${m.last_name || ''}`,
+            phone: phoneInfo?.phone || null,
+            phone_type: phoneInfo?.type || null,
+            visits_last_month:
+              (m.aptus_user_id ? visitCounts.get(m.aptus_user_id) || 0 : 0) +
+              (m.parakey_user_id ? visitCounts.get(m.parakey_user_id) || 0 : 0),
+            visits_total: totalVisits,
+            last_visit_at: lastVisit,
+            related_members: relationsMap.get(m.id) || [],
+          };
+        });
+
+      const endTime = performance.now();
+      const loadTime = ((endTime - startTime) / 1000).toFixed(2);
+      console.log(`✅ Fetched ${membersWithVisits.length} members in ${loadTime}s`);
+
+      // Cache the result
+      membersCache = {
+        data: membersWithVisits,
+        timestamp: Date.now()
+      };
+
+      setMembers(membersWithVisits);
+    } catch (error) {
+      console.error('Failed to fetch members:', error);
+    } finally {
+      if (showLoading) setLoading(false);
     }
-
-    // Merge member data with visit counts and phone numbers
-    // Filter out system accounts (is_system_account = true)
-    const membersWithVisits = membersData
-      ?.filter(m => !m.is_system_account)
-      .map(m => {
-        const phoneInfo = phoneMap.get(m.id);
-
-        // Calculate total visits from both aptus and parakey
-        const totalVisits =
-          (m.aptus_user_id ? totalVisitsMap.get(m.aptus_user_id) || 0 : 0) +
-          (m.parakey_user_id ? totalVisitsMap.get(m.parakey_user_id) || 0 : 0);
-
-        // Find most recent visit from either system
-        const aptusLastVisit = m.aptus_user_id ? lastVisitMap.get(m.aptus_user_id) : null;
-        const parakeyLastVisit = m.parakey_user_id ? lastVisitMap.get(m.parakey_user_id) : null;
-        let lastVisit = null;
-
-        if (aptusLastVisit && parakeyLastVisit) {
-          lastVisit = aptusLastVisit > parakeyLastVisit ? aptusLastVisit : parakeyLastVisit;
-        } else {
-          lastVisit = aptusLastVisit || parakeyLastVisit;
-        }
-
-        return {
-          ...m,
-          full_name: `${m.first_name} ${m.last_name || ''}`,
-          phone: phoneInfo?.phone || null,
-          phone_type: phoneInfo?.type || null,
-          visits_last_month:
-            (m.aptus_user_id ? visitCounts.get(m.aptus_user_id) || 0 : 0) +
-            (m.parakey_user_id ? visitCounts.get(m.parakey_user_id) || 0 : 0),
-          visits_total: totalVisits,
-          last_visit_at: lastVisit,
-          related_members: relationsMap.get(m.id) || [],
-        };
-      }) || [];
-
-    console.log('Fetched members:', membersWithVisits.length, 'members');
-    setMembers(membersWithVisits);
-    if (showLoading) setLoading(false);
   }
 
   // Show loading state while checking for saved session

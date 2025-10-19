@@ -27,48 +27,52 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
     async function fetchRelations() {
       try {
         // Check if this member is a primary member (has medbadare)
-        const { data: medbadareData } = await supabase
+        const { data: medbadareRelations } = await supabase
           .from('member_relations')
-          .select(`
-            relation_type,
-            medbadare:medbadare_member_id (
-              id,
-              fortnox_customer_number,
-              first_name,
-              last_name
-            )
-          `)
+          .select('relation_type, medbadare_member_id')
           .eq('primary_member_id', memberId);
 
-        if (medbadareData) {
-          setMedbadare(
-            medbadareData.map((rel: any) => ({
-              ...rel.medbadare,
-              relation_type: rel.relation_type,
-            }))
-          );
+        if (medbadareRelations && medbadareRelations.length > 0) {
+          // Fetch member details for medbadare
+          const medbadareIds = medbadareRelations.map(r => r.medbadare_member_id);
+          const { data: medbadareMembers } = await supabase
+            .from('members')
+            .select('id, fortnox_customer_number, first_name, last_name')
+            .in('id', medbadareIds);
+
+          if (medbadareMembers) {
+            const enrichedMedbadare = medbadareMembers.map(member => {
+              const relation = medbadareRelations.find(r => r.medbadare_member_id === member.id);
+              return {
+                ...member,
+                relation_type: relation?.relation_type || 'UNKNOWN'
+              };
+            });
+            setMedbadare(enrichedMedbadare);
+          }
         }
 
         // Check if this member is a medbadare (has a primary member)
-        const { data: primaryData } = await supabase
+        const { data: primaryRelation } = await supabase
           .from('member_relations')
-          .select(`
-            relation_type,
-            primary:primary_member_id (
-              id,
-              fortnox_customer_number,
-              first_name,
-              last_name
-            )
-          `)
+          .select('relation_type, primary_member_id')
           .eq('medbadare_member_id', memberId)
-          .single();
+          .maybeSingle();
 
-        if (primaryData) {
-          setPrimaryMember({
-            ...primaryData.primary,
-            relation_type: primaryData.relation_type,
-          });
+        if (primaryRelation) {
+          // Fetch primary member details
+          const { data: primaryMemberData } = await supabase
+            .from('members')
+            .select('id, fortnox_customer_number, first_name, last_name')
+            .eq('id', primaryRelation.primary_member_id)
+            .single();
+
+          if (primaryMemberData) {
+            setPrimaryMember({
+              ...primaryMemberData,
+              relation_type: primaryRelation.relation_type
+            });
+          }
         }
       } catch (error) {
         console.error('Error fetching relations:', error);
