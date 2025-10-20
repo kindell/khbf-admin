@@ -416,7 +416,7 @@ function App() {
           />
           <Route
             path="/medlem/:id"
-            element={<MemberDetail members={members} />}
+            element={<MemberDetail />}
           />
           <Route
             path="/parakey-mapping"

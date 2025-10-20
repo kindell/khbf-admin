@@ -6,14 +6,9 @@ import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { ArrowLeft, Mail, Phone, MapPin, CreditCard, Smartphone, Key, Calendar, MessageSquare } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, Key, Calendar, MessageSquare, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { RelatedMembers } from './components/RelatedMembers';
 import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
-import { ConversationItem } from './components/sms/ConversationItem';
-
-interface MemberDetailProps {
-  members: Member[];
-}
 
 interface PhoneMapping {
   phone_number: string;
@@ -86,7 +81,7 @@ interface ThreadData {
   unread_count: number;
 }
 
-export default function MemberDetail({ members }: MemberDetailProps) {
+export default function MemberDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [phones, setPhones] = useState<PhoneMapping[]>([]);
@@ -99,6 +94,7 @@ export default function MemberDetail({ members }: MemberDetailProps) {
   const [threadData, setThreadData] = useState<ThreadData | null>(null);
 
   const [member, setMember] = useState<Member | null>(null);
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   // Smart back button: use browser history if available, otherwise go to home
   const handleBack = () => {
@@ -433,160 +429,148 @@ export default function MemberDetail({ members }: MemberDetailProps) {
 
   return (
     <div className="space-y-6">
+      {/* Quick Win 1 & 3: Enhanced header with SMS button and access icons */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={handleBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Tillbaka
         </Button>
+
+        {/* Quick Win 1: SMS button in header */}
+        {phones.some(p => p.phone_type === 'mobile') && !threadData && (
+          <Button onClick={() => {
+            const primaryMobile = phones.find(p => p.is_primary && p.phone_type === 'mobile');
+            if (primaryMobile && member) {
+              navigate('/messages/new', {
+                state: {
+                  prefilledRecipient: {
+                    id: member.id,
+                    name: member.full_name,
+                    phone: primaryMobile.phone_number,
+                    type: 'member'
+                  }
+                }
+              });
+            }
+          }}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Skicka SMS
+          </Button>
+        )}
+
+        {/* Show SMS conversation if exists */}
+        {threadData && (
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/messages/${smsThreadId}`)}
+          >
+            <MessageSquare className="mr-2 h-4 w-4" />
+            SMS-konversation
+            {threadData.unread_count > 0 && (
+              <Badge className="ml-2 bg-red-500">{threadData.unread_count}</Badge>
+            )}
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold">{member.full_name}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">{member.full_name}</h1>
+          {/* Quick Win 3: Access status icons in header */}
+          {member.parakey_user_id && (
+            <Smartphone className="h-5 w-5 text-blue-500" title="Parakey aktiv" />
+          )}
+          {member.aptus_user_id && (
+            <CreditCard className="h-5 w-5 text-green-500" title="RFID aktiv" />
+          )}
+        </div>
         <p className="text-muted-foreground">
           Kundnummer: {member.fortnox_customer_number}
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Kontaktinformation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {emails.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">E-postadresser</p>
-                <div className="space-y-1">
-                  {emails.map((email, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm">{email.email}</span>
-                      <Badge variant="outline" className="ml-2">
-                        {email.source}
-                        {email.is_primary && ' (primär)'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">E-post</p>
-                <p className="text-sm">-</p>
-              </div>
-            )}
+      {/* Quick Win 2: Consolidated Member & Contact Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Medlem & Kontakt
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Member info first */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-muted-foreground">Kategori</span>
+            <Badge variant={getCategoryBadgeVariant(getMemberCategory(member))}>
+              {getMemberCategory(member)}
+            </Badge>
+          </div>
 
-            <Separator />
+          {member.personal_identity_number && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">Personnummer</span>
+              <span className="text-sm">{member.personal_identity_number}</span>
+            </div>
+          )}
 
-            {phones.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Telefonnummer</p>
-                <div className="space-y-1">
-                  {phones.map((phone, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm">
-                        {phone.phone_type === 'mobile' ? '📱 ' : phone.phone_type === 'landline' ? '☎️ ' : ''}
-                        {phone.phone_number}
-                      </span>
-                      {phone.is_primary && (
-                        <Badge variant="outline" className="ml-2">primär</Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Telefon</p>
-                <p className="text-sm">-</p>
-              </div>
-            )}
+          <Separator />
 
-            {phones.some(p => p.phone_type === 'mobile') && (
-              <>
-                <Separator />
-                {threadData ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">SMS-konversation</p>
-                    <div className="border rounded-lg overflow-hidden">
-                      <ConversationItem
-                        item={{
-                          type: 'thread',
-                          data: threadData
-                        }}
-                        onClick={() => navigate(`/messages/${smsThreadId}`)}
-                      />
-                    </div>
+          {/* Contact information */}
+          {emails.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">E-post</p>
+              <div className="space-y-1">
+                {emails.map((email, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <span className="text-sm">{email.email}</span>
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {email.source}
+                      {email.is_primary && ' (primär)'}
+                    </Badge>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => {
-                        const primaryMobile = phones.find(p => p.is_primary && p.phone_type === 'mobile');
-                        if (primaryMobile && member) {
-                          navigate('/messages/new', {
-                            state: {
-                              prefilledRecipient: {
-                                id: member.id,
-                                name: member.full_name,
-                                phone: primaryMobile.phone_number,
-                                type: 'member'
-                              }
-                            }
-                          });
-                        } else {
-                          navigate('/messages/new');
-                        }
-                      }}
-                    >
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      Skicka SMS
-                    </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phones.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Telefon</p>
+              <div className="space-y-1">
+                {phones.map((phone, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <span className="text-sm">
+                      {phone.phone_type === 'mobile' ? '📱 ' : phone.phone_type === 'landline' ? '☎️ ' : ''}
+                      {phone.phone_number}
+                    </span>
+                    {phone.is_primary && (
+                      <Badge variant="outline" className="ml-2 text-xs">primär</Badge>
+                    )}
                   </div>
-                )}
-              </>
-            )}
-
-            <Separator />
-
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Adress</p>
-              <p className="text-sm">
-                {member.address || '-'}
-                {member.postal_code && member.city && (
-                  <>
-                    <br />
-                    {member.postal_code} {member.city}
-                  </>
-                )}
-              </p>
+                ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Medlemsinfo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Kategori</p>
-              <Badge variant={getCategoryBadgeVariant(getMemberCategory(member))}>
-                {getMemberCategory(member)}
-              </Badge>
-            </div>
-            <Separator />
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Personnummer</p>
-              <p className="text-sm">{member.personal_identity_number || '-'}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          {(member.address || member.postal_code || member.city) && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Adress</p>
+                <p className="text-sm">
+                  {member.address || '-'}
+                  {member.postal_code && member.city && (
+                    <>
+                      <br />
+                      {member.postal_code} {member.city}
+                    </>
+                  )}
+                </p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Related Members */}
       <RelatedMembers memberId={id!} />
@@ -679,10 +663,11 @@ export default function MemberDetail({ members }: MemberDetailProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Besöksstatistik
+            Besök & Aktivitet
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          {/* Visit statistics */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">Senaste veckan</p>
@@ -745,160 +730,174 @@ export default function MemberDetail({ members }: MemberDetailProps) {
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {!loading && visits.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Besökskalender (senaste 4 veckorna)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              {(() => {
-                // Group visits by date (Swedish timezone)
-                const visitsByDate = new Map<string, Visit[]>();
-                visits.forEach(visit => {
-                  // Convert to Swedish date
-                  const dateStr = new Date(visit.eventtime).toLocaleDateString('sv-SE', {
-                    timeZone: 'Europe/Stockholm',
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                  });
-                  if (!visitsByDate.has(dateStr)) {
-                    visitsByDate.set(dateStr, []);
-                  }
-                  visitsByDate.get(dateStr)!.push(visit);
-                });
-
-                // Generate last 4 weeks (Swedish timezone)
-                const weeks = [];
-                const nowInSweden = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Stockholm' }));
-
-                // Find the most recent Sunday (end of week)
-                const mostRecentSunday = new Date(nowInSweden);
-                const dayOfWeek = mostRecentSunday.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-                mostRecentSunday.setDate(mostRecentSunday.getDate() + daysToSunday);
-
-                for (let weekOffset = 3; weekOffset >= 0; weekOffset--) {
-                  const weekDays = [];
-                  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-                    const date = new Date(mostRecentSunday);
-                    // Go back weekOffset weeks, then add dayOffset days (0=Monday, 6=Sunday)
-                    date.setDate(date.getDate() - (weekOffset * 7) - (6 - dayOffset));
-                    const dateKey = date.toLocaleDateString('sv-SE', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit'
-                    });
-                    const dayVisits = visitsByDate.get(dateKey) || [];
-                    weekDays.push({ date, dateKey, visits: dayVisits });
-                  }
-                  weeks.push(weekDays);
-                }
-
-                return (
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="p-2 text-left font-medium">Vecka</th>
-                        <th className="p-2 text-left font-medium">Mån</th>
-                        <th className="p-2 text-left font-medium">Tis</th>
-                        <th className="p-2 text-left font-medium">Ons</th>
-                        <th className="p-2 text-left font-medium">Tor</th>
-                        <th className="p-2 text-left font-medium">Fre</th>
-                        <th className="p-2 text-left font-medium">Lör</th>
-                        <th className="p-2 text-left font-medium">Sön</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeks.map((week, weekIndex) => {
-                        // Calculate ISO week number
-                        const firstDay = week[0].date;
-                        const startOfYear = new Date(firstDay.getFullYear(), 0, 1);
-                        const days = Math.floor((firstDay.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-                        const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-
-                        return (
-                          <tr key={weekIndex} className="border-b">
-                            <td className="p-2 text-muted-foreground font-medium">v.{weekNumber}</td>
-                            {week.map((day, dayIndex) => (
-                              <td
-                                key={dayIndex}
-                                className={`p-2 align-top ${day.visits.length > 0 ? 'bg-muted/50' : ''}`}
-                              >
-                                <div className="font-medium mb-1">
-                                  {day.date.getDate()}
-                                </div>
-                                {day.visits.length > 0 && (
-                                  <div className="space-y-0.5">
-                                    {day.visits.map((visit, idx) => {
-                                      // DB stores UTC without timezone marker, so we need to add 'Z'
-                                      const utcTime = visit.eventtime.endsWith('Z') ? visit.eventtime : visit.eventtime + 'Z';
-                                      const deptIcon = visit.department === 'GENTS' || visit.department === 'Herrar' ? '♂️' :
-                                                      visit.department === 'LADIES' || visit.department === 'Damer' ? '♀️' : '';
-                                      return (
-                                        <div key={idx} className="text-xs text-muted-foreground">
-                                          {deptIcon} {new Date(utcTime).toLocaleTimeString('sv-SE', {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            timeZone: 'Europe/Stockholm'
-                                          })}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                );
-              })()}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {member.last_visit_at && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Senaste besök</p>
-                <p className="text-sm">
-                  {new Date(member.last_visit_at).toLocaleDateString('sv-SE', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    timeZone: 'Europe/Stockholm'
-                  })}
-                </p>
-              </div>
-              {member.first_visit_at && (
+          {/* First and last visit dates */}
+          {member.last_visit_at && (
+            <>
+              <Separator />
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Första besök</p>
+                  <p className="text-sm font-medium text-muted-foreground">Senaste besök</p>
                   <p className="text-sm">
-                    {new Date(member.first_visit_at).toLocaleDateString('sv-SE', {
+                    {new Date(member.last_visit_at).toLocaleDateString('sv-SE', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
                       timeZone: 'Europe/Stockholm'
                     })}
                   </p>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                {member.first_visit_at && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">Första besök</p>
+                    <p className="text-sm">
+                      {new Date(member.first_visit_at).toLocaleDateString('sv-SE', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        timeZone: 'Europe/Stockholm'
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Collapsible calendar */}
+          {!loading && visits.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <Button
+                  variant="ghost"
+                  onClick={() => setCalendarExpanded(!calendarExpanded)}
+                  className="w-full flex items-center justify-between p-4 -mx-4 hover:bg-muted/50"
+                >
+                  <span className="font-semibold">Besökskalender (senaste 4 veckorna)</span>
+                  {calendarExpanded ? (
+                    <ChevronUp className="h-5 w-5" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" />
+                  )}
+                </Button>
+
+                {calendarExpanded && (
+                  <div className="mt-4 overflow-x-auto">
+                    {(() => {
+                      // Group visits by date (Swedish timezone)
+                      const visitsByDate = new Map<string, Visit[]>();
+                      visits.forEach(visit => {
+                        // Convert to Swedish date
+                        const dateStr = new Date(visit.eventtime).toLocaleDateString('sv-SE', {
+                          timeZone: 'Europe/Stockholm',
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit'
+                        });
+                        if (!visitsByDate.has(dateStr)) {
+                          visitsByDate.set(dateStr, []);
+                        }
+                        visitsByDate.get(dateStr)!.push(visit);
+                      });
+
+                      // Generate last 4 weeks (Swedish timezone)
+                      const weeks = [];
+                      const nowInSweden = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Stockholm' }));
+
+                      // Find the most recent Sunday (end of week)
+                      const mostRecentSunday = new Date(nowInSweden);
+                      const dayOfWeek = mostRecentSunday.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                      const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+                      mostRecentSunday.setDate(mostRecentSunday.getDate() + daysToSunday);
+
+                      for (let weekOffset = 3; weekOffset >= 0; weekOffset--) {
+                        const weekDays = [];
+                        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                          const date = new Date(mostRecentSunday);
+                          // Go back weekOffset weeks, then add dayOffset days (0=Monday, 6=Sunday)
+                          date.setDate(date.getDate() - (weekOffset * 7) - (6 - dayOffset));
+                          const dateKey = date.toLocaleDateString('sv-SE', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                          });
+                          const dayVisits = visitsByDate.get(dateKey) || [];
+                          weekDays.push({ date, dateKey, visits: dayVisits });
+                        }
+                        weeks.push(weekDays);
+                      }
+
+                      return (
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="p-2 text-left font-medium">Vecka</th>
+                              <th className="p-2 text-left font-medium">Mån</th>
+                              <th className="p-2 text-left font-medium">Tis</th>
+                              <th className="p-2 text-left font-medium">Ons</th>
+                              <th className="p-2 text-left font-medium">Tor</th>
+                              <th className="p-2 text-left font-medium">Fre</th>
+                              <th className="p-2 text-left font-medium">Lör</th>
+                              <th className="p-2 text-left font-medium">Sön</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weeks.map((week, weekIndex) => {
+                              // Calculate ISO week number
+                              const firstDay = week[0].date;
+                              const startOfYear = new Date(firstDay.getFullYear(), 0, 1);
+                              const days = Math.floor((firstDay.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+                              const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+
+                              return (
+                                <tr key={weekIndex} className="border-b">
+                                  <td className="p-2 text-muted-foreground font-medium">v.{weekNumber}</td>
+                                  {week.map((day, dayIndex) => (
+                                    <td
+                                      key={dayIndex}
+                                      className={`p-2 align-top ${day.visits.length > 0 ? 'bg-muted/50' : ''}`}
+                                    >
+                                      <div className="font-medium mb-1">
+                                        {day.date.getDate()}
+                                      </div>
+                                      {day.visits.length > 0 && (
+                                        <div className="space-y-0.5">
+                                          {day.visits.map((visit, idx) => {
+                                            // DB stores UTC without timezone marker, so we need to add 'Z'
+                                            const utcTime = visit.eventtime.endsWith('Z') ? visit.eventtime : visit.eventtime + 'Z';
+                                            const deptIcon = visit.department === 'GENTS' || visit.department === 'Herrar' ? '♂️' :
+                                                            visit.department === 'LADIES' || visit.department === 'Damer' ? '♀️' : '';
+                                            return (
+                                              <div key={idx} className="text-xs text-muted-foreground">
+                                                {deptIcon} {new Date(utcTime).toLocaleTimeString('sv-SE', {
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  timeZone: 'Europe/Stockholm'
+                                                })}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {!loading && invoices.length > 0 && (
         <Card>
