@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { Group } from '../../types/groups';
+import type { Group } from '../../types/groups';
 import { Badge } from '../ui/badge';
 
 interface GroupCardProps {

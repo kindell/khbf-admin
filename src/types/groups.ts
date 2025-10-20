@@ -2,7 +2,6 @@
 // Types for both static and dynamic message groups
 
 export type GroupType = 'static' | 'dynamic';
-export { GroupType };
 export type RuleLogic = 'AND' | 'OR';
 
 // Rule types for dynamic groups

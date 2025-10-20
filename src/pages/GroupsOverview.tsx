@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Group } from '../types/groups';
+import type { Group } from '../types/groups';
 import { GroupCard } from '../components/groups/GroupCard';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';

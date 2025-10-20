@@ -1,13 +1,68 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { GroupType } from '../types/groups';
+import type { GroupType, GroupMemberInfo } from '../types/groups';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
+import { MemberSelector } from '../components/groups/MemberSelector';
+import { supabase } from '../lib/supabase';
 
 export default function CreateGroup() {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<GroupType | null>(null);
+
+  // Form state for static groups
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<GroupMemberInfo[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Create static group
+  async function createStaticGroup() {
+    if (!name.trim() || selectedMembers.length === 0) {
+      return;
+    }
+
+    setIsCreating(true);
+
+    try {
+      // 1. Create the group
+      const { data: group, error: groupError } = await supabase
+        .from('sms_groups')
+        .insert({
+          name: name.trim(),
+          description: description.trim() || null,
+          type: 'static',
+          member_count: selectedMembers.length,
+        })
+        .select()
+        .single();
+
+      if (groupError) throw groupError;
+
+      // 2. Add members to the group
+      const memberInserts = selectedMembers.map(member => ({
+        group_id: group.id,
+        member_id: member.member_id,
+      }));
+
+      const { error: membersError } = await supabase
+        .from('sms_group_members')
+        .insert(memberInserts);
+
+      if (membersError) throw membersError;
+
+      // Success - navigate to the group detail page
+      navigate(`/messages/groups/${group.id}`);
+    } catch (error) {
+      console.error('Error creating group:', error);
+      alert('Det gick inte att skapa gruppen. Försök igen.');
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  const canCreateStatic = name.trim().length > 0 && selectedMembers.length > 0;
 
   if (!selectedType) {
     // Step 1: Select group type
@@ -83,7 +138,7 @@ export default function CreateGroup() {
     );
   }
 
-  // Step 2: Group creation form (static for now)
+  // Step 2: Group creation form (static)
   if (selectedType === 'static') {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -100,8 +155,12 @@ export default function CreateGroup() {
               </Button>
               <h1 className="text-xl font-semibold">Ny fast grupp</h1>
             </div>
-            <Button size="sm" disabled>
-              Skapa
+            <Button
+              size="sm"
+              disabled={!canCreateStatic || isCreating}
+              onClick={createStaticGroup}
+            >
+              {isCreating ? 'Skapar...' : 'Skapa'}
             </Button>
           </div>
         </div>
@@ -117,6 +176,8 @@ export default function CreateGroup() {
               <input
                 type="text"
                 placeholder="t.ex. Styrelsen"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="
                   w-full px-4 py-2
                   border border-gray-300 rounded-lg
@@ -134,6 +195,8 @@ export default function CreateGroup() {
               <textarea
                 placeholder="Beskriv gruppen..."
                 rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 className="
                   w-full px-4 py-2
                   border border-gray-300 rounded-lg
@@ -147,11 +210,12 @@ export default function CreateGroup() {
             {/* Members */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Medlemmar (0)
+                Medlemmar *
               </label>
-              <div className="border border-gray-300 rounded-lg p-4 bg-gray-50 text-center text-sm text-gray-600">
-                Medlemsväljare kommer snart...
-              </div>
+              <MemberSelector
+                selectedMembers={selectedMembers}
+                onMembersChange={setSelectedMembers}
+              />
             </div>
           </div>
         </div>
