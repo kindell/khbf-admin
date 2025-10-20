@@ -4,12 +4,20 @@ import { supabase } from '../lib/supabase';
 import { MobileContainer } from './layout/MobileContainer';
 import { MessageInput } from './sms/MessageInput';
 import { useSidebar } from '../contexts/SidebarContext';
+import { UsersRound } from 'lucide-react';
 
 interface Recipient {
   id: string; // member_id or phone_number
   name: string;
   phone: string;
   type: 'member' | 'custom';
+}
+
+interface Group {
+  id: string;
+  name: string;
+  member_count: number;
+  type: 'static' | 'dynamic';
 }
 
 export function NewMessage() {
@@ -21,7 +29,26 @@ export function NewMessage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [sending, setSending] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [showGroups, setShowGroups] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Load groups on mount
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  async function loadGroups() {
+    const { data, error } = await supabase
+      .from('sms_groups')
+      .select('id, name, member_count, type')
+      .is('deleted_at', null)
+      .order('name');
+
+    if (!error && data) {
+      setGroups(data);
+    }
+  }
 
   // Check for prefilled recipient from navigation state
   useEffect(() => {
@@ -112,6 +139,72 @@ export function NewMessage() {
 
   function removeRecipient(id: string) {
     setRecipients(recipients.filter(r => r.id !== id));
+  }
+
+  async function addGroupMembers(group: Group) {
+    try {
+      // Get all members from the group
+      const { data: groupMembers, error } = await supabase
+        .from('sms_group_members')
+        .select(`
+          member_id,
+          member:members!inner (
+            id,
+            first_name,
+            last_name,
+            fortnox_customer_number
+          )
+        `)
+        .eq('group_id', group.id);
+
+      if (error) throw error;
+
+      // Get phone numbers for all members
+      const memberIds = groupMembers?.map(gm => gm.member_id) || [];
+      const { data: phoneData } = await supabase
+        .from('phone_mappings')
+        .select('member_id, phone_number')
+        .in('member_id', memberIds)
+        .eq('is_primary', true);
+
+      // Create phone map
+      const phoneMap = new Map<string, string>();
+      phoneData?.forEach(p => {
+        phoneMap.set(p.member_id, p.phone_number);
+      });
+
+      // Convert to recipients and add them
+      const newRecipients: Recipient[] = (groupMembers || [])
+        .map(gm => {
+          const member = Array.isArray(gm.member) ? gm.member[0] : gm.member;
+          const phone = phoneMap.get(gm.member_id);
+
+          if (!phone) return null; // Skip members without phone numbers
+
+          return {
+            id: gm.member_id,
+            name: `${member.first_name} ${member.last_name}`,
+            phone: phone,
+            type: 'member' as const
+          };
+        })
+        .filter((r): r is Recipient => r !== null);
+
+      // Add new recipients, avoiding duplicates
+      const existingIds = new Set(recipients.map(r => r.id));
+      const recipientsToAdd = newRecipients.filter(r => !existingIds.has(r.id));
+
+      setRecipients([...recipients, ...recipientsToAdd]);
+      setShowGroups(false);
+
+      // Show notification
+      if (recipientsToAdd.length > 0) {
+        console.log(`Added ${recipientsToAdd.length} members from ${group.name}`);
+      }
+    } catch (error) {
+      console.error('Error loading group members:', error);
+      alert('Kunde inte ladda gruppmedlemmar');
+    }
   }
 
   async function handleSend(messageText: string) {
@@ -339,7 +432,44 @@ export function NewMessage() {
       {/* To: field with recipient pills */}
       <div className="relative flex items-start px-4 py-3 border-b border-gray-300 bg-white min-h-14 flex-shrink-0">
         <label className="text-gray-500 text-[17px] pt-1 mr-2 flex-shrink-0">Till:</label>
-        <div className="flex flex-wrap items-center gap-1.5 flex-1 min-h-8">
+        <div className="flex flex-col gap-2 flex-1">
+          {/* Group selector button */}
+          <button
+            type="button"
+            onClick={() => setShowGroups(!showGroups)}
+            className="self-start inline-flex items-center gap-1.5 text-blue-500 hover:text-blue-600 text-sm font-medium transition-colors"
+          >
+            <UsersRound className="h-4 w-4" />
+            <span>Välj grupp</span>
+          </button>
+
+          {/* Group dropdown */}
+          {showGroups && groups.length > 0 && (
+            <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 shadow-lg max-h-[300px] overflow-y-auto z-20">
+              {groups.map(group => (
+                <div
+                  key={group.id}
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 active:bg-gray-200 transition-colors border-b border-gray-100 last:border-b-0"
+                  onClick={() => addGroupMembers(group)}
+                >
+                  <div className={`
+                    w-10 h-10 rounded-full flex items-center justify-center text-lg
+                    ${group.type === 'static' ? 'bg-blue-100' : 'bg-purple-100'}
+                  `}>
+                    {group.type === 'static' ? '👥' : '⚡'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-[15px]">{group.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {group.member_count} {group.member_count === 1 ? 'medlem' : 'medlemmar'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-1.5 min-h-8">
           {recipients.map(recipient => (
             <div key={recipient.id} className="inline-flex items-center gap-1 bg-gray-200 rounded-2xl px-3 py-1 text-[15px] max-w-[200px]">
               <span className="whitespace-nowrap overflow-hidden text-ellipsis">{recipient.name}</span>
@@ -364,6 +494,7 @@ export function NewMessage() {
             className="border-none outline-none text-[17px] flex-1 min-w-[120px] py-1 bg-transparent placeholder:text-gray-400"
             autoFocus
           />
+          </div>
         </div>
 
         {/* Search results dropdown */}
