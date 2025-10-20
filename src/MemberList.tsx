@@ -8,6 +8,9 @@ import { Badge } from './components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Search, Smartphone, CreditCard, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getMemberCategory, getCategoryBadgeVariant, type MemberCategory } from './lib/member-categories';
+import { MemberRow } from './components/ios/MemberRow';
+import { SectionHeader } from './components/ios/SectionHeader';
+import { IOSSearchBar } from './components/ios/IOSSearchBar';
 
 type SortField = 'customerNumber' | 'name' | 'visits' | 'age' | 'memberYears';
 type SortDirection = 'asc' | 'desc';
@@ -382,7 +385,7 @@ export default function MemberList({
   };
 
   const handleMemberClick = (member: Member) => {
-    navigate(`/medlem/${member.id}`);
+    navigate(`/medlem/${member.id}`, { state: { animationDirection: 'forward' } });
   };
 
   const handleSort = (field: SortField) => {
@@ -406,7 +409,7 @@ export default function MemberList({
   return (
     <div className="space-y-4">
       {/* Category filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 px-4 lg:px-0">
         {categories.map(({ value, label, count }) => {
           const isSelected = selectedCategories.has(value);
           return (
@@ -424,8 +427,17 @@ export default function MemberList({
         })}
       </div>
 
-      {/* Search */}
-      <div className="relative">
+      {/* iOS-style Search (mobile) */}
+      <div className="lg:hidden">
+        <IOSSearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Sök medlem..."
+        />
+      </div>
+
+      {/* Desktop Search */}
+      <div className="hidden lg:block relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input
           type="text"
@@ -436,8 +448,30 @@ export default function MemberList({
         />
       </div>
 
-      {/* Members Table */}
-      <Card>
+      {/* iOS-style List (mobile) */}
+      <div className="lg:hidden">
+        <SectionHeader title={getPageTitle()} />
+        <div className="bg-white border-y border-gray-200">
+          {sortedMembers.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 text-[15px]">
+              Inga medlemmar {search ? 'matchar sökningen' : 'hittades'}
+            </div>
+          ) : (
+            sortedMembers.map((member, index) => (
+              <MemberRow
+                key={member.id}
+                member={member}
+                onClick={() => handleMemberClick(member)}
+                queuePosition={isQueueView ? index + 1 : undefined}
+                displayCategory={getDisplayCategory(member)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Table */}
+      <Card className="hidden lg:block">
         <CardHeader>
           <CardTitle>{getPageTitle()}</CardTitle>
         </CardHeader>

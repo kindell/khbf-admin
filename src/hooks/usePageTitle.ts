@@ -11,7 +11,8 @@ export function usePageTitle(): string {
   }
 
   if (location.pathname.startsWith('/medlem/')) {
-    return 'Medlemsdetaljer';
+    // Don't show title for member detail pages - they have their own iOS headers
+    return '';
   }
 
   if (location.pathname === '/parakey-mapping') {

@@ -13,6 +13,8 @@ interface RelatedMember {
   first_name: string;
   last_name: string;
   relation_type: string;
+  last_visit_at?: string | null;
+  visits_last_month?: number;
 }
 
 interface RelatedMembersProps {
@@ -35,11 +37,11 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
           .eq('primary_member_id', memberId);
 
         if (medbadareRelations && medbadareRelations.length > 0) {
-          // Fetch member details for medbadare
+          // Fetch member details for medbadare with visit stats
           const medbadareIds = medbadareRelations.map(r => r.medbadare_member_id);
           const { data: medbadareMembers } = await supabase
             .from('members')
-            .select('id, fortnox_customer_number, first_name, last_name')
+            .select('id, fortnox_customer_number, first_name, last_name, last_visit_at, visits_last_month')
             .in('id', medbadareIds);
 
           if (medbadareMembers) {
@@ -62,10 +64,10 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
           .maybeSingle();
 
         if (primaryRelation) {
-          // Fetch primary member details
+          // Fetch primary member details with visit stats
           const { data: primaryMemberData } = await supabase
             .from('members')
-            .select('id, fortnox_customer_number, first_name, last_name')
+            .select('id, fortnox_customer_number, first_name, last_name, last_visit_at, visits_last_month')
             .eq('id', primaryRelation.primary_member_id)
             .single();
 
@@ -105,7 +107,17 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
               value={
                 <div className="text-right">
                   <div className="font-medium">{primaryMember.first_name} {primaryMember.last_name}</div>
-                  <div className="text-[13px] text-gray-400">#{primaryMember.fortnox_customer_number}</div>
+                  <div className="text-[13px] text-gray-400">
+                    #{primaryMember.fortnox_customer_number}
+                    {primaryMember.visits_last_month !== undefined && (
+                      <span className="ml-2">• {primaryMember.visits_last_month} besök/mån</span>
+                    )}
+                  </div>
+                  {primaryMember.last_visit_at && (
+                    <div className="text-[11px] text-gray-400">
+                      Senast: {new Date(primaryMember.last_visit_at).toLocaleDateString('sv-SE')}
+                    </div>
+                  )}
                 </div>
               }
               onClick={() => navigate(`/medlem/${primaryMember.id}`, { state: { animationDirection: 'forward' } })}
@@ -121,7 +133,17 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
               value={
                 <div className="text-right">
                   <div className="font-medium">{mb.first_name} {mb.last_name}</div>
-                  <div className="text-[13px] text-gray-400">#{mb.fortnox_customer_number}</div>
+                  <div className="text-[13px] text-gray-400">
+                    #{mb.fortnox_customer_number}
+                    {mb.visits_last_month !== undefined && (
+                      <span className="ml-2">• {mb.visits_last_month} besök/mån</span>
+                    )}
+                  </div>
+                  {mb.last_visit_at && (
+                    <div className="text-[11px] text-gray-400">
+                      Senast: {new Date(mb.last_visit_at).toLocaleDateString('sv-SE')}
+                    </div>
+                  )}
                 </div>
               }
               onClick={() => navigate(`/medlem/${mb.id}`, { state: { animationDirection: 'forward' } })}
@@ -149,13 +171,23 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
                 onClick={() => navigate(`/medlem/${primaryMember.id}`, { state: { animationDirection: 'forward' } })}
                 className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer transition-colors"
               >
-                <div>
+                <div className="flex-1">
                   <p className="font-medium">
                     {primaryMember.first_name} {primaryMember.last_name}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Kundnr: {primaryMember.fortnox_customer_number}
                   </p>
+                  {(primaryMember.visits_last_month !== undefined || primaryMember.last_visit_at) && (
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                      {primaryMember.visits_last_month !== undefined && (
+                        <span>{primaryMember.visits_last_month} besök/mån</span>
+                      )}
+                      {primaryMember.last_visit_at && (
+                        <span>Senast: {new Date(primaryMember.last_visit_at).toLocaleDateString('sv-SE')}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">
@@ -180,13 +212,23 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
                     onClick={() => navigate(`/medlem/${mb.id}`, { state: { animationDirection: 'forward' } })}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer transition-colors"
                   >
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium">
                         {mb.first_name} {mb.last_name}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Kundnr: {mb.fortnox_customer_number}
                       </p>
+                      {(mb.visits_last_month !== undefined || mb.last_visit_at) && (
+                        <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                          {mb.visits_last_month !== undefined && (
+                            <span>{mb.visits_last_month} besök/mån</span>
+                          )}
+                          {mb.last_visit_at && (
+                            <span>Senast: {new Date(mb.last_visit_at).toLocaleDateString('sv-SE')}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">

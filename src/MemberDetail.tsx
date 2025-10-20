@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { ArrowLeft, CreditCard, Smartphone, Key, Calendar, MessageSquare, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { RelatedMembers } from './components/RelatedMembers';
 import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
+import { MemberDetailSkeleton } from './components/MemberDetailSkeleton';
 
 interface PhoneMapping {
   phone_number: string;
@@ -95,6 +96,8 @@ export default function MemberDetail() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [calendarExpanded, setCalendarExpanded] = useState(false);
+  const [accessExpanded, setAccessExpanded] = useState(true);
+  const [invoicesExpanded, setInvoicesExpanded] = useState(false);
 
   // Smart back button: use browser history if available, otherwise go to home
   const handleBack = () => {
@@ -411,6 +414,10 @@ export default function MemberDetail() {
     setLoading(false);
   }
 
+  if (loading) {
+    return <MemberDetailSkeleton />;
+  }
+
   if (!member) {
     return (
       <div className="space-y-6">
@@ -587,70 +594,109 @@ export default function MemberDetail() {
             {!accessInfo.has_parakey && !accessInfo.has_aptus ? (
               <p className="text-sm text-muted-foreground">Inga accessmetoder registrerade</p>
             ) : (
-              <div className="space-y-6">
-                {accessInfo.has_parakey && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Smartphone className="h-4 w-4 text-muted-foreground" />
-                      <h4 className="font-semibold">Parakey Mobil-app</h4>
-                    </div>
-                    <div className="rounded-lg border p-3 space-y-2">
-                      <p className="text-sm">{accessInfo.parakey_email}</p>
-                      {accessInfo.parakey_dept_stats && (
-                        <div className="flex gap-4 text-sm">
-                          <span>
-                            ♂️ Herrar: <strong>{accessInfo.parakey_dept_stats.gents}</strong> besök
-                          </span>
-                          <span>
-                            ♀️ Damer: <strong>{accessInfo.parakey_dept_stats.ladies}</strong> besök
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+              <div className="space-y-4">
+                {/* Summary - always visible */}
+                <div className="flex items-center gap-3 text-sm">
+                  {accessInfo.has_parakey && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Smartphone className="h-3 w-3" />
+                      Parakey
+                    </Badge>
+                  )}
+                  {accessInfo.has_aptus && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Key className="h-3 w-3" />
+                      {accessInfo.aptus_keys.length} RFID-kort
+                    </Badge>
+                  )}
+                </div>
 
-                {accessInfo.has_aptus && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Key className="h-4 w-4 text-muted-foreground" />
-                      <h4 className="font-semibold">Aptus-nycklar (RFID) ({accessInfo.aptus_keys.length})</h4>
-                    </div>
-                    <div className="space-y-2">
-                      {accessInfo.aptus_keys.map((key, idx) => (
-                        <div key={idx} className="rounded-lg border p-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="font-mono text-sm font-medium">{key.card}</div>
-                            {key.blocked && (
-                              <Badge variant="destructive">
-                                🚫 Blockerad
-                              </Badge>
-                            )}
-                          </div>
-                          {key.f1 && <p className="text-sm text-muted-foreground">{key.f1}</p>}
-                          {key.total_uses > 0 ? (
-                            <>
-                              <div className="flex gap-4 text-sm">
-                                <span>
-                                  Totalt: <strong>{key.total_uses}</strong> besök
-                                </span>
-                                <span>
-                                  ♂️ <strong>{key.herrar_uses}</strong>
-                                </span>
-                                <span>
-                                  ♀️ <strong>{key.damer_uses}</strong>
-                                </span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Senast använd: {new Date(key.last_used!).toLocaleDateString('sv-SE')}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Aldrig använd</p>
+                {/* Expand/Collapse button */}
+                <Button
+                  variant="ghost"
+                  onClick={() => setAccessExpanded(!accessExpanded)}
+                  className="w-full flex items-center justify-between p-4 -mx-4 hover:bg-muted/50"
+                  aria-expanded={accessExpanded}
+                  aria-controls="access-details"
+                >
+                  <span className="font-semibold">
+                    {accessExpanded ? 'Dölj detaljer' : 'Visa detaljer'}
+                  </span>
+                  {accessExpanded ? (
+                    <ChevronUp className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </Button>
+
+                {/* Detailed content - collapsible */}
+                {accessExpanded && (
+                  <div id="access-details" className="space-y-6 pt-2" role="region" aria-label="Access method details">
+                    {accessInfo.has_parakey && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="h-4 w-4 text-muted-foreground" />
+                          <h4 className="font-semibold">Parakey Mobil-app</h4>
+                        </div>
+                        <div className="rounded-lg border p-3 space-y-2">
+                          <p className="text-sm">{accessInfo.parakey_email}</p>
+                          {accessInfo.parakey_dept_stats && (
+                            <div className="flex gap-4 text-sm">
+                              <span>
+                                ♂️ Herrar: <strong>{accessInfo.parakey_dept_stats.gents}</strong> besök
+                              </span>
+                              <span>
+                                ♀️ Damer: <strong>{accessInfo.parakey_dept_stats.ladies}</strong> besök
+                              </span>
+                            </div>
                           )}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
+
+                    {accessInfo.has_aptus && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Key className="h-4 w-4 text-muted-foreground" />
+                          <h4 className="font-semibold">Aptus-nycklar (RFID) ({accessInfo.aptus_keys.length})</h4>
+                        </div>
+                        <div className="space-y-2">
+                          {accessInfo.aptus_keys.map((key, idx) => (
+                            <div key={idx} className="rounded-lg border p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="font-mono text-sm font-medium">{key.card}</div>
+                                {key.blocked && (
+                                  <Badge variant="destructive">
+                                    🚫 Blockerad
+                                  </Badge>
+                                )}
+                              </div>
+                              {key.f1 && <p className="text-sm text-muted-foreground">{key.f1}</p>}
+                              {key.total_uses > 0 ? (
+                                <>
+                                  <div className="flex gap-4 text-sm">
+                                    <span>
+                                      Totalt: <strong>{key.total_uses}</strong> besök
+                                    </span>
+                                    <span>
+                                      ♂️ <strong>{key.herrar_uses}</strong>
+                                    </span>
+                                    <span>
+                                      ♀️ <strong>{key.damer_uses}</strong>
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Senast använd: {new Date(key.last_used!).toLocaleDateString('sv-SE')}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Aldrig använd</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -775,17 +821,19 @@ export default function MemberDetail() {
                   variant="ghost"
                   onClick={() => setCalendarExpanded(!calendarExpanded)}
                   className="w-full flex items-center justify-between p-4 -mx-4 hover:bg-muted/50"
+                  aria-expanded={calendarExpanded}
+                  aria-controls="visit-calendar"
                 >
                   <span className="font-semibold">Besökskalender (senaste 4 veckorna)</span>
                   {calendarExpanded ? (
-                    <ChevronUp className="h-5 w-5" />
+                    <ChevronUp className="h-5 w-5" aria-hidden="true" />
                   ) : (
-                    <ChevronDown className="h-5 w-5" />
+                    <ChevronDown className="h-5 w-5" aria-hidden="true" />
                   )}
                 </Button>
 
                 {calendarExpanded && (
-                  <div className="mt-4 overflow-x-auto">
+                  <div id="visit-calendar" className="mt-4 overflow-x-auto" role="region" aria-label="Visit calendar details">
                     {(() => {
                       // Group visits by date (Swedish timezone)
                       const visitsByDate = new Map<string, Visit[]>();
@@ -904,39 +952,84 @@ export default function MemberDetail() {
           <CardHeader>
             <CardTitle>Fakturor ({invoices.length})</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fakturanr</TableHead>
-                  <TableHead>Fakturadatum</TableHead>
-                  <TableHead>Förfallodatum</TableHead>
-                  <TableHead className="text-right">Belopp</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.map((invoice) => (
-                  <TableRow key={invoice.DocumentNumber} className={invoice.Cancelled ? 'opacity-50' : ''}>
-                    <TableCell className="font-mono text-sm">{invoice.DocumentNumber}</TableCell>
-                    <TableCell>{invoice.InvoiceDate}</TableCell>
-                    <TableCell>{invoice.DueDate}</TableCell>
-                    <TableCell className="text-right">{invoice.Total.toLocaleString('sv-SE')} kr</TableCell>
-                    <TableCell className="text-right">{invoice.Balance.toLocaleString('sv-SE')} kr</TableCell>
-                    <TableCell>
-                      {invoice.Cancelled ? (
-                        <Badge variant="outline">Makulerad</Badge>
-                      ) : invoice.Balance === 0 ? (
-                        <Badge variant="secondary">Betald</Badge>
-                      ) : (
-                        <Badge variant="destructive">Obetald</Badge>
-                      )}
-                    </TableCell>
+          <CardContent className="space-y-4">
+            {/* Summary - always visible */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Totalt belopp</p>
+                <p className="text-2xl font-bold">
+                  {invoices.reduce((sum, inv) => sum + inv.Total, 0).toLocaleString('sv-SE')} kr
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Betalda</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {invoices.filter(inv => !inv.Cancelled && inv.Balance === 0).length}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Senaste faktura</p>
+                <p className="text-sm font-medium">
+                  {invoices[0]?.InvoiceDate || '-'}
+                </p>
+              </div>
+            </div>
+
+            {/* Expand/Collapse button */}
+            <Button
+              variant="ghost"
+              onClick={() => setInvoicesExpanded(!invoicesExpanded)}
+              className="w-full flex items-center justify-between p-4 -mx-4 hover:bg-muted/50"
+              aria-expanded={invoicesExpanded}
+              aria-controls="invoice-history"
+            >
+              <span className="font-semibold">
+                {invoicesExpanded ? 'Dölj fakturahistorik' : 'Visa fakturahistorik'}
+              </span>
+              {invoicesExpanded ? (
+                <ChevronUp className="h-5 w-5" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-5 w-5" aria-hidden="true" />
+              )}
+            </Button>
+
+            {/* Detailed table - collapsible */}
+            {invoicesExpanded && (
+              <div id="invoice-history" role="region" aria-label="Invoice history details">
+                <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fakturanr</TableHead>
+                    <TableHead>Fakturadatum</TableHead>
+                    <TableHead>Förfallodatum</TableHead>
+                    <TableHead className="text-right">Belopp</TableHead>
+                    <TableHead className="text-right">Saldo</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {invoices.map((invoice) => (
+                    <TableRow key={invoice.DocumentNumber} className={invoice.Cancelled ? 'opacity-50' : ''}>
+                      <TableCell className="font-mono text-sm">{invoice.DocumentNumber}</TableCell>
+                      <TableCell>{invoice.InvoiceDate}</TableCell>
+                      <TableCell>{invoice.DueDate}</TableCell>
+                      <TableCell className="text-right">{invoice.Total.toLocaleString('sv-SE')} kr</TableCell>
+                      <TableCell className="text-right">{invoice.Balance.toLocaleString('sv-SE')} kr</TableCell>
+                      <TableCell>
+                        {invoice.Cancelled ? (
+                          <Badge variant="outline">Makulerad</Badge>
+                        ) : invoice.Balance === 0 ? (
+                          <Badge variant="secondary">Betald</Badge>
+                        ) : (
+                          <Badge variant="destructive">Obetald</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
