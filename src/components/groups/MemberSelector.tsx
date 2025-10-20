@@ -29,7 +29,10 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
 
       try {
         // Search by name or customer number
-        const { data, error } = await supabase
+        // Split search query to handle "Jon Kindell" style searches
+        const searchTerms = searchQuery.trim().split(/\s+/);
+
+        let query = supabase
           .from('members')
           .select(`
             id,
@@ -39,14 +42,44 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
             last_visit_at,
             visits_last_month
           `)
-          .neq('is_system_account', true)
-          .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,fortnox_customer_number.ilike.%${searchQuery}%`)
-          .limit(20);
+          .neq('is_system_account', true);
+
+        // If multiple search terms (e.g., "Jon Kindell"), search both parts
+        if (searchTerms.length > 1) {
+          // Build an OR query that checks if both terms match either name field
+          const orConditions = searchTerms.map(term =>
+            `first_name.ilike.%${term}%,last_name.ilike.%${term}%`
+          ).join(',');
+          query = query.or(orConditions);
+        } else {
+          // Single term: search first_name, last_name, or customer number
+          query = query.or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,fortnox_customer_number.ilike.%${searchQuery}%`);
+        }
+
+        const { data, error } = await query.limit(50);
 
         if (error) throw error;
 
+        // Filter results client-side for multi-term searches to ensure all terms match
+        let filteredData = data || [];
+        if (searchTerms.length > 1) {
+          filteredData = filteredData.filter(member => {
+            const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
+            const customerNumber = member.fortnox_customer_number.toLowerCase();
+            const searchLower = searchQuery.toLowerCase();
+
+            // Check if full name contains the search query
+            return fullName.includes(searchLower) ||
+                   customerNumber.includes(searchLower) ||
+                   searchTerms.every(term =>
+                     fullName.includes(term.toLowerCase()) ||
+                     customerNumber.includes(term.toLowerCase())
+                   );
+          });
+        }
+
         // Get phone numbers for these members
-        const memberIds = data?.map(m => m.id) || [];
+        const memberIds = filteredData.map(m => m.id);
         const { data: phoneData } = await supabase
           .from('phone_mappings')
           .select('member_id, phone_number')
@@ -61,8 +94,9 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
 
         // Filter out already selected members
         const selectedIds = new Set(selectedMembers.map(m => m.member_id));
-        const results: GroupMemberInfo[] = (data || [])
+        const results: GroupMemberInfo[] = filteredData
           .filter(m => !selectedIds.has(m.id))
+          .slice(0, 20) // Limit to top 20 results
           .map(m => ({
             member_id: m.id,
             first_name: m.first_name,
