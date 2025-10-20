@@ -6,11 +6,21 @@ export type RuleLogic = 'AND' | 'OR';
 
 // Rule types for dynamic groups
 export type RuleType =
-  | 'visit_activity'
+  | 'activity_status'
   | 'category'
+  | 'visit_activity'
+  | 'activity_level'
   | 'access_method'
   | 'last_visit'
   | 'visit_count';
+
+export type ActivityStatusValue = 'active' | 'inactive';
+
+export type MemberCategoryValue =
+  | 'MEDLEM'
+  | 'MEDBADARE'
+  | 'KÖANDE'
+  | 'INAKTIV';
 
 export type VisitActivityValue =
   | 'last_week'
@@ -20,18 +30,12 @@ export type VisitActivityValue =
 
 export type AccessMethodValue = 'parakey' | 'rfid';
 
-export type MemberCategoryValue =
-  | 'MEDLEM'
-  | 'SPONSOR'
-  | 'ARSAVGIFT'
-  | 'FORETAG';
-
 // Individual rule definition
 export interface DynamicGroupRule {
   id?: string; // For UI management
   type: RuleType;
   operator?: string;
-  value: string | number;
+  value: string | number | string[]; // Support arrays for multi-select
   label?: string; // Human-readable display
 }
 

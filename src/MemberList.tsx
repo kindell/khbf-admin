@@ -7,7 +7,7 @@ import { Input } from './components/ui/input';
 import { Badge } from './components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Search, Smartphone, CreditCard, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { getMemberCategory, getCategoryBadgeVariant, type MemberCategory } from './lib/member-categories';
+import { getMemberCategory, getCategoryBadgeVariant, getActivityStatus, getActivityBadgeVariant, type MemberCategory, type ActivityStatus } from './lib/member-categories';
 import { MemberRow } from './components/ios/MemberRow';
 import { SectionHeader } from './components/ios/SectionHeader';
 import { IOSSearchBar } from './components/ios/IOSSearchBar';
@@ -118,10 +118,19 @@ export default function MemberList({
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Initialize state from URL or defaults
+  const [selectedActivityStatuses, setSelectedActivityStatuses] = useState<Set<ActivityStatus>>(() => {
+    const activityParam = searchParams.get('activity');
+    if (activityParam) {
+      const statuses = activityParam.split(',') as ActivityStatus[];
+      return new Set(statuses);
+    }
+    return new Set(); // Empty = all
+  });
+
   const [selectedCategories, setSelectedCategories] = useState<Set<MemberCategory>>(() => {
     const categoriesParam = searchParams.get('categories');
     if (categoriesParam) {
-      const cats = categoriesParam.split(',') as MemberCategory[];
+      const cats = categoriesParam.split(',').filter(c => c !== 'SPONSOR') as MemberCategory[];
       return new Set(cats);
     }
     return new Set(['MEDLEM', 'MEDBADARE']);
@@ -147,7 +156,15 @@ export default function MemberList({
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
 
-    if (selectedCategories.size > 0) {
+    // Activity status: only set if 1 selected (not both/none)
+    if (selectedActivityStatuses.size === 1) {
+      params.set('activity', Array.from(selectedActivityStatuses).join(','));
+    } else {
+      params.delete('activity');
+    }
+
+    // Categories: only set if some selected (not all/none)
+    if (selectedCategories.size > 0 && selectedCategories.size < 4) {
       params.set('categories', Array.from(selectedCategories).join(','));
     } else {
       params.delete('categories');
@@ -163,27 +180,60 @@ export default function MemberList({
     params.set('dir', sortDirection);
 
     setSearchParams(params, { replace: true });
-  }, [selectedCategories, search, sortField, sortDirection]);
+  }, [selectedActivityStatuses, selectedCategories, search, sortField, sortDirection]);
 
+  // Calculate category and activity status for each member
+  const membersWithCategory = members.map(m => ({
+    ...m,
+    category: getMemberCategory(m),
+    activityStatus: getActivityStatus(m)
+  }));
+
+  // Calculate counts for activity status (filtered by selected categories)
+  const activityStatuses: { value: ActivityStatus; label: string; count: number }[] = [
+    { value: 'active', label: 'Aktiv', count: 0 },
+    { value: 'inactive', label: 'Inaktiv', count: 0 },
+  ];
+
+  // Calculate counts for categories (filtered by selected activity statuses)
   const categories: { value: MemberCategory; label: string; count: number }[] = [
     { value: 'MEDLEM', label: 'Medlem', count: 0 },
     { value: 'MEDBADARE', label: 'Medbadare', count: 0 },
-    { value: 'SPONSOR', label: 'Sponsor', count: 0 },
     { value: 'KÖANDE', label: 'Köande', count: 0 },
     { value: 'INAKTIV', label: 'Inaktiv', count: 0 },
   ];
 
-  // Calculate category for each member
-  const membersWithCategory = members.map(m => ({
-    ...m,
-    category: getMemberCategory(m)
-  }));
-
-  // Count members in each category
+  // Count activity statuses (filtered by selected categories)
   membersWithCategory.forEach(m => {
-    const cat = categories.find(c => c.value === m.category);
-    if (cat) cat.count++;
+    // Only count if member matches selected categories (or all selected)
+    const matchesCategory = selectedCategories.size === 0 || selectedCategories.size === 4 || selectedCategories.has(m.category);
+
+    if (matchesCategory) {
+      const activity = activityStatuses.find(a => a.value === m.activityStatus);
+      if (activity) activity.count++;
+    }
   });
+
+  // Count categories (filtered by selected activity statuses)
+  membersWithCategory.forEach(m => {
+    // Only count if member matches selected activity statuses (or all selected)
+    const matchesActivity = selectedActivityStatuses.size === 0 || selectedActivityStatuses.size === 2 || selectedActivityStatuses.has(m.activityStatus);
+
+    if (matchesActivity) {
+      const cat = categories.find(c => c.value === m.category);
+      if (cat) cat.count++;
+    }
+  });
+
+  const toggleActivityStatus = (status: ActivityStatus) => {
+    const newSelected = new Set(selectedActivityStatuses);
+    if (newSelected.has(status)) {
+      newSelected.delete(status);
+    } else {
+      newSelected.add(status);
+    }
+    setSelectedActivityStatuses(newSelected);
+  };
 
   const toggleCategory = (category: MemberCategory) => {
     const newSelected = new Set(selectedCategories);
@@ -198,9 +248,20 @@ export default function MemberList({
   // Check if we're showing only queue members
   const isQueueView = selectedCategories.size === 1 && selectedCategories.has('KÖANDE');
 
-  // Apply category filter
-  const viewFilteredMembers = membersWithCategory.filter(m => {
-    return selectedCategories.size === 0 || selectedCategories.has(m.category);
+  // Apply activity status filter (both/none = all)
+  const activityFilteredMembers = membersWithCategory.filter(m => {
+    if (selectedActivityStatuses.size === 0 || selectedActivityStatuses.size === 2) {
+      return true; // All
+    }
+    return selectedActivityStatuses.has(m.activityStatus);
+  });
+
+  // Apply category filter (all/none = all)
+  const viewFilteredMembers = activityFilteredMembers.filter(m => {
+    if (selectedCategories.size === 0 || selectedCategories.size === 4) {
+      return true; // All
+    }
+    return selectedCategories.has(m.category);
   });
 
   // Apply search filter
@@ -374,13 +435,6 @@ export default function MemberList({
   };
 
   const getDisplayCategory = (member: Member & { category: MemberCategory }) => {
-    // For sponsors, show their underlying category (MEDLEM or MEDBADARE)
-    if (selectedCategories.size === 1 && selectedCategories.has('SPONSOR')) {
-      // Check if they have paid membership fee
-      const hasPaidMembershipFee = member.last_annual_fee_date || member.last_entrance_fee_date;
-      if (hasPaidMembershipFee) return 'MEDLEM';
-      if (member.parakey_user_id || member.aptus_user_id) return 'MEDBADARE';
-    }
     return member.category;
   };
 
@@ -408,6 +462,27 @@ export default function MemberList({
 
   return (
     <div className="space-y-4">
+      {/* Activity Status filters */}
+      <div className="px-4 lg:px-0">
+        <div className="flex flex-wrap gap-2">
+          {activityStatuses.map(({ value, label, count }) => {
+            const isSelected = selectedActivityStatuses.has(value);
+            return (
+              <Badge
+                key={value}
+                variant={isSelected ? getActivityBadgeVariant(value) : 'outline'}
+                className={`cursor-pointer transition-all ${
+                  isSelected ? 'ring-2 ring-offset-1' : 'opacity-60 hover:opacity-100'
+                }`}
+                onClick={() => toggleActivityStatus(value)}
+              >
+                {label} ({count})
+              </Badge>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Category filters */}
       <div className="flex flex-wrap gap-2 px-4 lg:px-0">
         {categories.map(({ value, label, count }) => {
