@@ -114,8 +114,16 @@ export function NewMessage() {
     if (error) {
       console.error('Search error:', error);
     } else if (data) {
-      // Add member results
-      results.push(...data);
+      // Add member results with proper formatting
+      const memberResults = data
+        .filter((m: any) => m.phone_number) // Only members with phone numbers
+        .map((m: any) => ({
+          id: m.member_id,
+          name: m.full_name || `${m.first_name || ''} ${m.last_name || ''}`.trim(),
+          phone: m.phone_number,
+          type: 'member'
+        }));
+      results.push(...memberResults);
     }
 
     setSearchResults(results);
@@ -502,13 +510,13 @@ export function NewMessage() {
                 ) : (
                   <>
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                      {member.type === 'custom' ? '📱' : member.name.charAt(0).toUpperCase()}
+                      {member.type === 'custom' ? '📱' : (member.name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[17px] text-black">
-                        {member.type === 'custom' ? 'Skicka till nummer' : member.name}
+                        {member.type === 'custom' ? 'Skicka till nummer' : (member.name || 'Okänd')}
                       </div>
-                      <div className="text-[15px] text-gray-500 mt-0.5">{member.phone}</div>
+                      <div className="text-[15px] text-gray-500 mt-0.5">{member.phone || ''}</div>
                     </div>
                   </>
                 )}
