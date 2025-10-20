@@ -8,6 +8,7 @@ export type RuleLogic = 'AND' | 'OR';
 export type RuleType =
   | 'activity_status'
   | 'category'
+  | 'door_access'
   | 'visit_activity'
   | 'activity_level'
   | 'access_method'
@@ -21,6 +22,8 @@ export type MemberCategoryValue =
   | 'MEDBADARE'
   | 'KÖANDE'
   | 'INAKTIV';
+
+export type DoorAccessValue = 'GENTS' | 'LADIES';
 
 export type VisitActivityValue =
   | 'last_week'
