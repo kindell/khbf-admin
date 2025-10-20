@@ -165,6 +165,8 @@ export function NewMessage() {
 
   async function addGroupMembers(group: Group) {
     try {
+      console.log('Loading members for group:', group);
+
       // Get all members from the group
       const { data: groupMembers, error } = await supabase
         .from('sms_group_members')
@@ -179,15 +181,28 @@ export function NewMessage() {
         `)
         .eq('group_id', group.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching group members:', error);
+        throw error;
+      }
+
+      console.log('Group members fetched:', groupMembers);
 
       // Get phone numbers for all members
       const memberIds = groupMembers?.map(gm => gm.member_id) || [];
-      const { data: phoneData } = await supabase
+      console.log('Fetching phone numbers for member IDs:', memberIds);
+
+      const { data: phoneData, error: phoneError } = await supabase
         .from('phone_mappings')
         .select('member_id, phone_number')
         .in('member_id', memberIds)
         .eq('is_primary', true);
+
+      if (phoneError) {
+        console.error('Error fetching phone numbers:', phoneError);
+      }
+
+      console.log('Phone data fetched:', phoneData);
 
       // Create phone map
       const phoneMap = new Map<string, string>();
@@ -216,16 +231,20 @@ export function NewMessage() {
       const existingIds = new Set(recipients.map(r => r.id));
       const recipientsToAdd = newRecipients.filter(r => !existingIds.has(r.id));
 
+      console.log('New recipients to add:', recipientsToAdd);
+
       setRecipients([...recipients, ...recipientsToAdd]);
-      setShowGroups(false);
 
       // Show notification
       if (recipientsToAdd.length > 0) {
-        console.log(`Added ${recipientsToAdd.length} members from ${group.name}`);
+        console.log(`✅ Added ${recipientsToAdd.length} members from ${group.name}`);
+      } else {
+        console.warn('⚠️ No members with phone numbers found in group');
+        alert(`Inga medlemmar med telefonnummer hittades i ${group.name}`);
       }
-    } catch (error) {
-      console.error('Error loading group members:', error);
-      alert('Kunde inte ladda gruppmedlemmar');
+    } catch (error: any) {
+      console.error('❌ Error loading group members:', error);
+      alert(`Kunde inte ladda gruppmedlemmar: ${error?.message || 'Okänt fel'}`);
     }
   }
 
