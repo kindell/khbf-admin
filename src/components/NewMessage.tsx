@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { MobileContainer } from './layout/MobileContainer';
 import { MessageInput } from './sms/MessageInput';
 import { useSidebar } from '../contexts/SidebarContext';
-import { UsersRound } from 'lucide-react';
 
 interface Recipient {
   id: string; // member_id or phone_number
@@ -30,7 +29,6 @@ export function NewMessage() {
   const [showResults, setShowResults] = useState(false);
   const [sending, setSending] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [showGroups, setShowGroups] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Load groups on mount
@@ -70,6 +68,8 @@ export function NewMessage() {
   }, [searchQuery]);
 
   async function searchMembers() {
+    const results: any[] = [];
+
     // Check if it's a phone number (starts with +46 or 0, then digits)
     // Remove spaces, hyphens, and parentheses for validation
     const cleanedQuery = searchQuery.replace(/[\s\-()]/g, '');
@@ -83,15 +83,28 @@ export function NewMessage() {
       }
 
       // Show option to add phone number directly
-      setSearchResults([{
+      results.push({
         id: formattedPhone,
         name: formattedPhone,
         phone: formattedPhone,
         type: 'custom'
-      }]);
-      setShowResults(true);
-      return;
+      });
     }
+
+    // Search for matching groups
+    const matchingGroups = groups.filter(group =>
+      group.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Add groups to results with 'group' type
+    matchingGroups.forEach(group => {
+      results.push({
+        id: `group-${group.id}`,
+        name: group.name,
+        groupData: group,
+        type: 'group'
+      });
+    });
 
     // Use RPC function for efficient full-name search
     const { data, error } = await supabase.rpc('search_members', {
@@ -100,29 +113,26 @@ export function NewMessage() {
 
     if (error) {
       console.error('Search error:', error);
-      setSearchResults([]);
-      setShowResults(false);
-      return;
+    } else if (data) {
+      // Add member results
+      results.push(...data);
     }
 
-    if (data) {
-      const results = data
-        .map((m: any) => ({
-          id: m.id,
-          name: `${m.first_name} ${m.last_name}`,
-          phone: m.phone_number,
-          number: m.fortnox_customer_number,
-          type: 'member'
-        }))
-        // Filter out already selected
-        .filter(r => !recipients.some(rec => rec.id === r.id));
-
-      setSearchResults(results);
-      setShowResults(results.length > 0);
-    }
+    setSearchResults(results);
+    setShowResults(results.length > 0);
   }
 
   function addRecipient(member: any) {
+    // If it's a group, add all group members
+    if (member.type === 'group') {
+      addGroupMembers(member.groupData);
+      setSearchQuery('');
+      setSearchResults([]);
+      setShowResults(false);
+      searchInputRef.current?.focus();
+      return;
+    }
+
     const recipient: Recipient = {
       id: member.id,
       name: member.name,
@@ -130,7 +140,11 @@ export function NewMessage() {
       type: member.type || 'member'
     };
 
-    setRecipients([...recipients, recipient]);
+    // Check if already added
+    if (!recipients.some(r => r.id === recipient.id)) {
+      setRecipients([...recipients, recipient]);
+    }
+
     setSearchQuery('');
     setSearchResults([]);
     setShowResults(false);
@@ -432,44 +446,7 @@ export function NewMessage() {
       {/* To: field with recipient pills */}
       <div className="relative flex items-start px-4 py-3 border-b border-gray-300 bg-white min-h-14 flex-shrink-0">
         <label className="text-gray-500 text-[17px] pt-1 mr-2 flex-shrink-0">Till:</label>
-        <div className="flex flex-col gap-2 flex-1">
-          {/* Group selector button */}
-          <button
-            type="button"
-            onClick={() => setShowGroups(!showGroups)}
-            className="self-start inline-flex items-center gap-1.5 text-blue-500 hover:text-blue-600 text-sm font-medium transition-colors"
-          >
-            <UsersRound className="h-4 w-4" />
-            <span>Välj grupp</span>
-          </button>
-
-          {/* Group dropdown */}
-          {showGroups && groups.length > 0 && (
-            <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 shadow-lg max-h-[300px] overflow-y-auto z-20">
-              {groups.map(group => (
-                <div
-                  key={group.id}
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 active:bg-gray-200 transition-colors border-b border-gray-100 last:border-b-0"
-                  onClick={() => addGroupMembers(group)}
-                >
-                  <div className={`
-                    w-10 h-10 rounded-full flex items-center justify-center text-lg
-                    ${group.type === 'static' ? 'bg-blue-100' : 'bg-purple-100'}
-                  `}>
-                    {group.type === 'static' ? '👥' : '⚡'}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-[15px]">{group.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {group.member_count} {group.member_count === 1 ? 'medlem' : 'medlemmar'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-1.5 min-h-8">
+        <div className="flex flex-wrap items-center gap-1.5 flex-1 min-h-8">
           {recipients.map(recipient => (
             <div key={recipient.id} className="inline-flex items-center gap-1 bg-gray-200 rounded-2xl px-3 py-1 text-[15px] max-w-[200px]">
               <span className="whitespace-nowrap overflow-hidden text-ellipsis">{recipient.name}</span>
@@ -490,11 +467,10 @@ export function NewMessage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
             onBlur={() => setTimeout(() => setShowResults(false), 200)}
-            placeholder={recipients.length === 0 ? "Ange namn eller telefonnummer" : ""}
+            placeholder={recipients.length === 0 ? "Ange namn, telefonnummer eller grupp" : ""}
             className="border-none outline-none text-[17px] flex-1 min-w-[120px] py-1 bg-transparent placeholder:text-gray-400"
             autoFocus
           />
-          </div>
         </div>
 
         {/* Search results dropdown */}
@@ -506,15 +482,36 @@ export function NewMessage() {
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 active:bg-gray-200 transition-colors"
                 onClick={() => addRecipient(member)}
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                  {member.type === 'custom' ? '📱' : member.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[17px] text-black">
-                    {member.type === 'custom' ? 'Skicka till nummer' : member.name}
-                  </div>
-                  <div className="text-[15px] text-gray-500 mt-0.5">{member.phone}</div>
-                </div>
+                {member.type === 'group' ? (
+                  <>
+                    <div className={`
+                      w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0
+                      ${member.groupData.type === 'static' ? 'bg-blue-100' : 'bg-purple-100'}
+                    `}>
+                      {member.groupData.type === 'static' ? '👥' : '⚡'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[17px] text-black font-medium">
+                        {member.name}
+                      </div>
+                      <div className="text-[15px] text-gray-500 mt-0.5">
+                        {member.groupData.member_count} {member.groupData.member_count === 1 ? 'medlem' : 'medlemmar'}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                      {member.type === 'custom' ? '📱' : member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[17px] text-black">
+                        {member.type === 'custom' ? 'Skicka till nummer' : member.name}
+                      </div>
+                      <div className="text-[15px] text-gray-500 mt-0.5">{member.phone}</div>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
