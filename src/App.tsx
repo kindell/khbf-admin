@@ -16,6 +16,8 @@ const SMSInbox = lazy(() => import('./SMSInbox').then(module => ({ default: modu
 const SMSThread = lazy(() => import('./SMSThread').then(module => ({ default: module.SMSThread })));
 const GroupDetail = lazy(() => import('./components/GroupDetail').then(module => ({ default: module.GroupDetail })));
 const NewMessage = lazy(() => import('./components/NewMessage').then(module => ({ default: module.NewMessage })));
+const GroupsOverview = lazy(() => import('./pages/GroupsOverview'));
+const CreateGroup = lazy(() => import('./pages/CreateGroup'));
 
 export type Period = 'week' | 'month' | '3months';
 
@@ -429,6 +431,18 @@ function App() {
           <Route
             path="/messages/new"
             element={<NewMessage />}
+          />
+          <Route
+            path="/messages/groups"
+            element={<GroupsOverview />}
+          />
+          <Route
+            path="/messages/groups/new"
+            element={<CreateGroup />}
+          />
+          <Route
+            path="/messages/groups/:id"
+            element={<GroupDetail />}
           />
           <Route
             path="/messages/group/:groupId"
