@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, X, UserPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { GroupMemberInfo } from '../../types/groups';
@@ -14,6 +14,8 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
   const [searchResults, setSearchResults] = useState<GroupMemberInfo[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Search members when query changes
   useEffect(() => {
@@ -123,10 +125,53 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
     return () => clearTimeout(debounceTimer);
   }, [searchQuery, selectedMembers]);
 
+  // Reset selected index when results change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchResults]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (resultRefs.current[selectedIndex]) {
+      resultRefs.current[selectedIndex]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [selectedIndex]);
+
   const handleAddMember = (member: GroupMemberInfo) => {
     onMembersChange([...selectedMembers, member]);
     setSearchQuery('');
     setShowResults(false);
+    setSelectedIndex(0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showResults || searchResults.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev =>
+          prev < searchResults.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => prev > 0 ? prev - 1 : 0);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (searchResults[selectedIndex]) {
+          handleAddMember(searchResults[selectedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowResults(false);
+        break;
+    }
   };
 
   const handleRemoveMember = (memberId: string) => {
@@ -144,6 +189,7 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
             placeholder="Sök medlem (namn eller kundnummer)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             onFocus={() => {
               if (searchResults.length > 0) {
                 setShowResults(true);
@@ -162,16 +208,21 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
         {showResults && searchResults.length > 0 && (
           <Card className="absolute z-10 w-full mt-1 max-h-80 overflow-y-auto shadow-lg">
             <CardContent className="p-0">
-              {searchResults.map((member) => (
+              {searchResults.map((member, index) => (
                 <div
                   key={member.member_id}
+                  ref={el => resultRefs.current[index] = el}
                   onClick={() => handleAddMember(member)}
-                  className="
+                  className={`
                     flex items-center gap-3 px-4 py-3
                     border-b border-gray-100 last:border-b-0
-                    hover:bg-gray-50 cursor-pointer
+                    cursor-pointer
                     transition-colors
-                  "
+                    ${index === selectedIndex
+                      ? 'bg-blue-50 border-blue-200'
+                      : 'hover:bg-gray-50'
+                    }
+                  `}
                 >
                   <div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                     <UserPlus className="h-5 w-5 text-blue-600" />
