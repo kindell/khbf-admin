@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Search, Trash2, ArrowDown, ArrowUp, AlertCircle } from 'lucide-react';
+import { Search, Trash2, ArrowDown, ArrowUp, AlertCircle, RotateCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -16,6 +16,8 @@ interface SMSLog {
   created_at: string;
   status: string;
   is_system: boolean;
+  error_message?: string | null;
+  retry_count?: number;
   member_name?: string | null;
 }
 
@@ -24,7 +26,7 @@ export default function SMSLogs() {
   const [filteredLogs, setFilteredLogs] = useState<SMSLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const [filter, setFilter] = useState<'all' | 'inbound' | 'outbound' | 'pending' | 'failed'>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
@@ -60,6 +62,8 @@ export default function SMSLogs() {
         created_at,
         status,
         is_system,
+        error_message,
+        retry_count,
         sms_threads (
           members (
             first_name,
@@ -90,9 +94,20 @@ export default function SMSLogs() {
   function filterLogs() {
     let filtered = [...logs];
 
-    // Filter by direction
+    // Filter by direction or status
     if (filter !== 'all') {
-      filtered = filtered.filter(log => log.direction === filter);
+      if (filter === 'pending' || filter === 'failed') {
+        // Filter by status
+        filtered = filtered.filter(log => log.status === filter);
+      } else if (filter === 'outbound') {
+        // Filter by outbound with sent/delivered status only
+        filtered = filtered.filter(log =>
+          log.direction === 'outbound' && (log.status === 'sent' || log.status === 'delivered')
+        );
+      } else {
+        // Filter by direction (inbound)
+        filtered = filtered.filter(log => log.direction === filter);
+      }
     }
 
     // Filter by search
@@ -129,6 +144,25 @@ export default function SMSLogs() {
     loadLogs();
   }
 
+  async function retryMessage(id: string) {
+    const { error } = await supabase
+      .from('sms_queue')
+      .update({
+        status: 'pending',
+        retry_count: 0,
+        error_message: 'Manuell retry från admin'
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Failed to retry message:', error);
+      alert('Kunde inte återförsöka meddelandet');
+      return;
+    }
+
+    loadLogs();
+  }
+
   function getStatusBadge(status: string) {
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
       'sent': 'default',
@@ -148,7 +182,8 @@ export default function SMSLogs() {
   const stats = {
     total: logs.length,
     inbound: logs.filter(l => l.direction === 'inbound').length,
-    outbound: logs.filter(l => l.direction === 'outbound').length,
+    outbound: logs.filter(l => l.direction === 'outbound' && (l.status === 'sent' || l.status === 'delivered')).length,
+    pending: logs.filter(l => l.status === 'pending').length,
     failed: logs.filter(l => l.status === 'failed').length
   };
 
@@ -160,7 +195,7 @@ export default function SMSLogs() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{stats.total}</div>
@@ -181,6 +216,12 @@ export default function SMSLogs() {
         </Card>
         <Card>
           <CardContent className="p-4">
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <div className="text-xs text-muted-foreground">Väntande</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
             <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
             <div className="text-xs text-muted-foreground">Misslyckade</div>
           </CardContent>
@@ -193,7 +234,7 @@ export default function SMSLogs() {
           <CardTitle>Filter och Sök</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant={filter === 'all' ? 'default' : 'outline'}
               onClick={() => setFilter('all')}
@@ -216,6 +257,22 @@ export default function SMSLogs() {
             >
               <ArrowUp className="h-4 w-4 mr-1" />
               Skickade
+            </Button>
+            <Button
+              variant={filter === 'pending' ? 'default' : 'outline'}
+              onClick={() => setFilter('pending')}
+              size="sm"
+            >
+              <AlertCircle className="h-4 w-4 mr-1" />
+              Väntande
+            </Button>
+            <Button
+              variant={filter === 'failed' ? 'default' : 'outline'}
+              onClick={() => setFilter('failed')}
+              size="sm"
+            >
+              <AlertCircle className="h-4 w-4 mr-1" />
+              Misslyckade
             </Button>
           </div>
 
@@ -287,15 +344,36 @@ export default function SMSLogs() {
                       <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
                         {log.message}
                       </p>
+                      {log.status === 'failed' && log.error_message && (
+                        <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                          <span className="font-semibold">Fel:</span> {log.error_message}
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       {getStatusBadge(log.status)}
+                      {log.status === 'failed' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => retryMessage(log.id)}
+                          className="text-xs h-7"
+                        >
+                          <RotateCw className="h-3 w-3 mr-1" />
+                          Försök igen
+                        </Button>
+                      )}
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {formatDistanceToNow(new Date(log.created_at), {
                           addSuffix: true,
                           locale: sv
                         })}
                       </span>
+                      {log.retry_count !== undefined && log.retry_count > 0 && (
+                        <span className="text-xs text-orange-600">
+                          {log.retry_count} försök
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
