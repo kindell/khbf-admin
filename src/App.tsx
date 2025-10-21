@@ -18,6 +18,7 @@ const GroupDetail = lazy(() => import('./components/GroupDetail').then(module =>
 const NewMessage = lazy(() => import('./components/NewMessage').then(module => ({ default: module.NewMessage })));
 const GroupsOverview = lazy(() => import('./pages/GroupsOverview'));
 const CreateGroup = lazy(() => import('./pages/CreateGroup'));
+const EditGroup = lazy(() => import('./pages/EditGroup'));
 const GroupDetailView = lazy(() => import('./components/groups/GroupDetailView').then(module => ({ default: module.GroupDetailView })));
 
 export type Period = 'week' | 'month' | '3months';
@@ -364,7 +365,17 @@ function App() {
   const totalMembers = members.length;
   const activeMembers = members.filter(m => m.aptus_user_id || m.parakey_user_id).length;
   const totalVisitsThisMonth = members.reduce((sum, m) => sum + (m.visits_last_month || 0), 0);
-  const avgVisitsPerMember = totalMembers > 0 ? Math.round(totalVisitsThisMonth / totalMembers) : 0;
+
+  // Calculate average visits per week for active members (visited in last 3 months)
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const activeMembersWithVisits = members.filter(m =>
+    m.last_visit_at && new Date(m.last_visit_at) >= threeMonthsAgo
+  );
+  const totalVisitsLast3Months = activeMembersWithVisits.reduce((sum, m) => sum + (m.visits_last_3_months || 0), 0);
+  const avgVisitsPerMember = activeMembersWithVisits.length > 0
+    ? (totalVisitsLast3Months / activeMembersWithVisits.length / 13).toFixed(1)
+    : 0;
 
   return (
     <SidebarProvider>
@@ -402,7 +413,7 @@ function App() {
                   <StatsCard
                     title="Genomsnittligt Besök"
                     value={avgVisitsPerMember}
-                    description="Per medlem senaste månaden"
+                    description="Per aktiv medlem (vecka)"
                     icon={TrendingUp}
                   />
                 </div>
@@ -440,6 +451,10 @@ function App() {
           <Route
             path="/messages/groups/new"
             element={<CreateGroup />}
+          />
+          <Route
+            path="/messages/groups/:id/edit"
+            element={<EditGroup />}
           />
           <Route
             path="/messages/groups/:id"
