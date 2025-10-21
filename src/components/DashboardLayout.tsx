@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Users, Key, Activity, Settings, MessageSquare, LogOut, UsersRound } from 'lucide-react';
+import { Users, Key, Activity, Settings, MessageSquare, LogOut, UsersRound, ScrollText } from 'lucide-react';
 import { MobileHeader } from './layout/MobileHeader';
 import { useSidebar } from '../contexts/SidebarContext';
 
@@ -86,6 +86,18 @@ export function DashboardLayout({ children, userName, onLogout, title = 'KHBF Ad
           >
             <UsersRound className="h-4 w-4" />
             Grupper
+          </Link>
+          <Link
+            to="/messages/logs"
+            onClick={closeSidebar}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ml-4 ${
+              isActive('/messages/logs')
+                ? 'bg-accent text-accent-foreground'
+                : 'hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            <ScrollText className="h-4 w-4" />
+            Loggar
           </Link>
           <Link
             to="/parakey-mapping"

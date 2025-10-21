@@ -32,7 +32,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         return;
       }
 
-      const response = await fetch('api/otp-auth.php?action=request-code', {
+      const response = await fetch(`${import.meta.env.BASE_URL}api/otp-auth.php?action=request-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone_number: normalizedPhone })
@@ -90,7 +90,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
 
       const normalizedPhone = phoneNumber.replace(/[^0-9+]/g, '');
 
-      const response = await fetch('api/otp-auth.php?action=verify-code', {
+      const response = await fetch(`${import.meta.env.BASE_URL}api/otp-auth.php?action=verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -6,13 +6,41 @@ interface MessageInputProps {
   placeholder?: string;
 }
 
-export function MessageInput({
+export interface MessageInputRef {
+  insertText: (text: string) => void;
+  getText: () => string;
+}
+
+export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(({
   onSend,
   disabled = false,
   placeholder = 'Meddelande'
-}: MessageInputProps) {
+}, ref) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    insertText: (text: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const currentValue = message;
+
+      // Insert text at cursor position
+      const newValue = currentValue.substring(0, start) + text + currentValue.substring(end);
+      setMessage(newValue);
+
+      // Set cursor position after inserted text
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + text.length, start + text.length);
+      }, 0);
+    },
+    getText: () => message
+  }), [message]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -75,4 +103,4 @@ export function MessageInput({
       </div>
     </div>
   );
-}
+});

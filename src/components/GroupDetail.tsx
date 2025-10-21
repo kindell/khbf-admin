@@ -78,15 +78,8 @@ export function GroupDetail() {
               const exists = prev.some(msg => msg.id === newSMS.id);
               if (exists) return prev;
 
-              // Check if we already have a message with same content and timestamp (deduplicate)
-              const timestamp = new Date(newSMS.created_at).getTime();
-              const roundedTimestamp = Math.floor(timestamp / 5000) * 5000;
-
-              const duplicateExists = prev.some(msg => {
-                const msgTimestamp = new Date(msg.created_at).getTime();
-                const msgRoundedTimestamp = Math.floor(msgTimestamp / 5000) * 5000;
-                return msg.message === newSMS.message && msgRoundedTimestamp === roundedTimestamp;
-              });
+              // Check if we already have a message with same content (deduplicate by content only)
+              const duplicateExists = prev.some(msg => msg.message === newSMS.message);
 
               if (duplicateExists) return prev;
 
@@ -165,15 +158,14 @@ export function GroupDetail() {
       return;
     }
 
-    // Deduplicate messages - same message sent to multiple recipients should only show once
+    // Deduplicate messages - same message content should only show once per broadcast
+    // Since all messages in a broadcast have the same broadcast_id, we just need to dedupe by message content
     const uniqueMessages: SMS[] = [];
     const seen = new Map<string, SMS>();
 
     for (const msg of (smsData as SMS[]) || []) {
-      // Create a key based on message content and timestamp (rounded to nearest second)
-      const timestamp = new Date(msg.created_at).getTime();
-      const roundedTimestamp = Math.floor(timestamp / 5000) * 5000; // Round to nearest 5 seconds
-      const key = `${msg.message}_${roundedTimestamp}`;
+      // Create a key based on message content only (all messages here have same broadcast_id)
+      const key = msg.message;
 
       if (!seen.has(key)) {
         seen.set(key, msg);

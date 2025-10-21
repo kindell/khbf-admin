@@ -20,6 +20,7 @@ const GroupsOverview = lazy(() => import('./pages/GroupsOverview'));
 const CreateGroup = lazy(() => import('./pages/CreateGroup'));
 const EditGroup = lazy(() => import('./pages/EditGroup'));
 const GroupDetailView = lazy(() => import('./components/groups/GroupDetailView').then(module => ({ default: module.GroupDetailView })));
+const SMSLogs = lazy(() => import('./pages/SMSLogs'));
 
 export type Period = 'week' | 'month' | '3months';
 
@@ -451,6 +452,10 @@ function App() {
           <Route
             path="/messages/groups/new"
             element={<CreateGroup />}
+          />
+          <Route
+            path="/messages/logs"
+            element={<SMSLogs />}
           />
           <Route
             path="/messages/groups/:id/edit"

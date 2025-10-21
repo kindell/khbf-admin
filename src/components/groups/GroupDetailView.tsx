@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Trash2, Users, RefreshCw, Edit } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Group, GroupMember } from '../../types/groups';
 import { Button } from '../ui/button';
@@ -13,7 +13,9 @@ export function GroupDetailView() {
 
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const [dynamicMembers, setDynamicMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingDynamicMembers, setLoadingDynamicMembers] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -96,11 +98,32 @@ export function GroupDetailView() {
         });
 
         setMembers(enrichedMembers);
+      } else if (groupData.type === 'dynamic') {
+        // For dynamic groups, load members using RPC function
+        loadDynamicMembers(groupData.id);
       }
     } catch (error) {
       console.error('Error loading group:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadDynamicMembers(groupId: string) {
+    setLoadingDynamicMembers(true);
+    try {
+      const { data, error } = await supabase
+        .rpc('resolve_dynamic_group_members', { group_id_param: groupId });
+
+      if (error) throw error;
+
+      // Filter to only members with phone numbers (already done by SQL function with INNER JOIN)
+      setDynamicMembers(data || []);
+    } catch (error) {
+      console.error('Error loading dynamic members:', error);
+      setDynamicMembers([]);
+    } finally {
+      setLoadingDynamicMembers(false);
     }
   }
 
@@ -119,12 +142,16 @@ export function GroupDetailView() {
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', group.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        alert(`Det gick inte att ta bort gruppen: ${error.message}`);
+        return;
+      }
 
       navigate('/messages/groups');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting group:', error);
-      alert('Det gick inte att ta bort gruppen. Försök igen.');
+      alert(`Det gick inte att ta bort gruppen: ${error?.message || 'Okänt fel'}`);
     }
   }
 
@@ -253,6 +280,16 @@ export function GroupDetailView() {
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Skicka meddelande till gruppen
               </Button>
+              {group.type === 'dynamic' && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => navigate(`/messages/groups/${id}/edit`)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Redigera filter
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="w-full text-red-600 border-red-300 hover:bg-red-50"
@@ -308,18 +345,116 @@ export function GroupDetailView() {
           </Card>
         )}
 
-        {/* Dynamic group info */}
+        {/* Dynamic group rules */}
+        {group.type === 'dynamic' && group.rules && (
+          <Card>
+            <CardHeader className="px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚡</span>
+                <h2 className="font-semibold text-gray-900">
+                  Regler
+                </h2>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                {/* Logic display */}
+                {group.rules.rules && group.rules.rules.length > 1 && (
+                  <div className="text-sm text-gray-600 mb-3 pb-3 border-b border-gray-200">
+                    Medlemmar som uppfyller{' '}
+                    <strong>
+                      {group.rules_logic === 'OR' ? 'minst en' : 'alla'}
+                    </strong>{' '}
+                    regler:
+                  </div>
+                )}
+
+                {/* Rules list */}
+                {group.rules.rules?.map((rule: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200"
+                  >
+                    <div className="flex-shrink-0 w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-semibold">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {rule.label || rule.value}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Info text */}
+                <div className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-200">
+                  <p>💡 Medlemmar uppdateras automatiskt när de matchar reglerna</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dynamic group members list */}
         {group.type === 'dynamic' && (
           <Card>
-            <CardContent className="p-4">
-              <div className="text-center text-sm text-gray-600">
-                <p className="mb-2">
-                  Dynamiska grupper uppdateras automatiskt baserat på regler
-                </p>
-                <p className="text-xs text-gray-500">
-                  Regelbyggare kommer snart...
-                </p>
+            <CardHeader className="px-4 py-3 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-gray-600" />
+                  <h2 className="font-semibold text-gray-900">
+                    Matchande medlemmar ({dynamicMembers.length})
+                  </h2>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => loadDynamicMembers(group.id)}
+                  disabled={loadingDynamicMembers}
+                >
+                  <RefreshCw className={`h-4 w-4 ${loadingDynamicMembers ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingDynamicMembers ? (
+                <div className="p-8 text-center text-sm text-gray-500">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                  Laddar medlemmar...
+                </div>
+              ) : dynamicMembers.length === 0 ? (
+                <div className="p-8 text-center text-sm text-gray-500">
+                  <p className="mb-1">Inga medlemmar matchar just nu</p>
+                  <p className="text-xs">
+                    Medlemmar kommer att dyka upp när de matchar gruppens regler
+                  </p>
+                </div>
+              ) : (
+                dynamicMembers.map((member) => (
+                  <div
+                    key={member.member_id}
+                    className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <span className="text-lg">👤</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900">
+                        {member.first_name} {member.last_name}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {member.fortnox_customer_number}
+                        {member.phone_number && ` • ${member.phone_number}`}
+                      </div>
+                    </div>
+                    {member.visits_last_month !== undefined && member.visits_last_month > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        {member.visits_last_month} besök
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         )}
