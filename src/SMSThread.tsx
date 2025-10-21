@@ -4,9 +4,11 @@ import { supabase } from './lib/supabase';
 import { MobileContainer } from './components/layout/MobileContainer';
 import { MessageBubble } from './components/sms/MessageBubble';
 import { ThreadHeader } from './components/sms/ThreadHeader';
-import { MessageInput } from './components/sms/MessageInput';
+import { MessageInput, type MessageInputRef } from './components/sms/MessageInput';
+import { VariableHelper } from './components/sms/VariableHelper';
 import { ConversationInfo } from './components/sms/ConversationInfo';
 import { groupMessages } from './lib/messageGrouping';
+import { replaceMessageVariables, type MemberWithVisits } from './lib/smsVariables';
 import { useSidebar } from './contexts/SidebarContext';
 
 interface SMS {
@@ -38,6 +40,7 @@ export function SMSThread() {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<MessageInputRef>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [showConversationInfo, setShowConversationInfo] = useState(false);
@@ -250,12 +253,36 @@ export function SMSThread() {
     setSending(true);
 
     try {
+      // Get member data for variable replacement if this is a member
+      let personalizedMessage = messageText.trim();
+
+      if (threadInfo.member_id) {
+        const { data: memberData } = await supabase
+          .from('members')
+          .select('id, first_name, last_name, visits_last_week, visits_last_3_months, last_visit_at')
+          .eq('id', threadInfo.member_id)
+          .single();
+
+        if (memberData) {
+          const memberWithVisits: MemberWithVisits = {
+            id: memberData.id,
+            first_name: memberData.first_name,
+            last_name: memberData.last_name,
+            visits_last_week: memberData.visits_last_week,
+            visits_last_3_months: memberData.visits_last_3_months,
+            last_visit_at: memberData.last_visit_at
+          };
+
+          personalizedMessage = replaceMessageVariables(messageText.trim(), memberWithVisits);
+        }
+      }
+
       const { data, error } = await supabase
         .from('sms_queue')
         .insert({
           direction: 'outbound',
           phone_number: threadInfo.phone_number,
-          message: messageText.trim(),
+          message: personalizedMessage,
           status: 'pending',
           thread_id: threadId
         })
@@ -339,8 +366,20 @@ export function SMSThread() {
         </button>
       )}
 
+      {/* Variable Helper - only show for members */}
+      {threadInfo?.member_id && (
+        <div className="border-t bg-white px-4 py-3">
+          <VariableHelper
+            onInsertVariable={(variable) => {
+              messageInputRef.current?.insertText(variable);
+            }}
+          />
+        </div>
+      )}
+
       {/* Message Input */}
       <MessageInput
+        ref={messageInputRef}
         onSend={(msg) => {
           sendMessage(msg);
         }}
