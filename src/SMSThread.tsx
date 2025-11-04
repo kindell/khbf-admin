@@ -69,7 +69,7 @@ export function SMSThread() {
           console.log('📨 New SMS received via realtime:', payload.new);
           const newMsg = payload.new as SMS;
 
-          // Don't show system messages
+          // Don't show system messages (AI messages use is_ai flag and should be shown)
           if (newMsg.is_system) return;
 
           setMessages(prev => {
@@ -190,7 +190,7 @@ export function SMSThread() {
       .from('sms_queue')
       .select('*')
       .eq('thread_id', threadId)
-      .or('is_system.is.null,is_system.eq.false')  // Exclude system messages
+      .or('is_system.is.null,is_system.eq.false')  // Exclude system messages (AI messages use is_ai flag instead)
       .order('created_at', { ascending: true });
 
     // Also load broadcast messages sent to this phone number using broadcast_id
@@ -200,7 +200,7 @@ export function SMSThread() {
       .eq('phone_number', info.phone_number)
       .eq('direction', 'outbound')
       .not('broadcast_id', 'is', null)
-      .or('is_system.is.null,is_system.eq.false')
+      .or('is_system.is.null,is_system.eq.false')  // Exclude system messages (AI messages use is_ai flag instead)
       .order('created_at', { ascending: true });
 
     // For each broadcast message, get recipient count from the broadcast
