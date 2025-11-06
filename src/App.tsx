@@ -115,7 +115,6 @@ function App() {
       const { data, error } = await supabase
         .from('members')
         .select('*')
-        .order('fortnox_customer_number')
         .range(from, from + pageSize - 1);
 
       if (error) {
@@ -128,6 +127,14 @@ function App() {
       if (data.length < pageSize) break;
       from += pageSize;
     }
+
+    // Sort numerically by fortnox_customer_number (same as AI system)
+    // This ensures queue positions match between admin and AI
+    allMembers.sort((a, b) => {
+      const aNum = parseInt(a.fortnox_customer_number) || 999999;
+      const bNum = parseInt(b.fortnox_customer_number) || 999999;
+      return aNum - bNum;
+    });
 
     return allMembers;
   }
