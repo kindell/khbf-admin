@@ -25,6 +25,8 @@ export type MemberCategoryValue =
 
 export type DoorAccessValue = 'GENTS' | 'LADIES';
 
+export type DoorAccessPeriod = 'week' | 'month' | '3months';
+
 export type VisitActivityValue =
   | 'last_week'
   | 'last_month'
@@ -39,6 +41,7 @@ export interface DynamicGroupRule {
   type: RuleType;
   operator?: string;
   value: string | number | string[]; // Support arrays for multi-select
+  period?: DoorAccessPeriod; // For door_access rules - time period filter
   label?: string; // Human-readable display
 }
 
@@ -62,6 +65,11 @@ export interface Group {
   // Cached member count
   member_count: number;
   last_count_update?: string | null;
+
+  // AI metadata
+  ai_created?: boolean;
+  ai_query?: string | null;
+  created_by_member_id?: string | null;
 
   // Metadata
   created_at: string;

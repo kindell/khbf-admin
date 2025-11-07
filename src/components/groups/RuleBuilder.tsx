@@ -1,5 +1,5 @@
 import { Card, CardContent } from '../ui/card';
-import type { DynamicGroupRule, RuleLogic } from '../../types/groups';
+import type { DynamicGroupRule, RuleLogic, DoorAccessPeriod } from '../../types/groups';
 
 interface RuleBuilderProps {
   rules: DynamicGroupRule[];
@@ -14,6 +14,7 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
   const activityStatusRule = rules.find(r => r.type === 'activity_status');
   const categoryRule = rules.find(r => r.type === 'category');
   const doorAccessRule = rules.find(r => r.type === 'door_access');
+  const accessMethodRule = rules.find(r => r.type === 'access_method');
 
   const selectedActivityStatuses = activityStatusRule
     ? (Array.isArray(activityStatusRule.value) ? activityStatusRule.value.map(String) : [String(activityStatusRule.value)])
@@ -26,6 +27,12 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
   const selectedDoorAccess = doorAccessRule
     ? (Array.isArray(doorAccessRule.value) ? doorAccessRule.value.map(String) : [String(doorAccessRule.value)])
     : [];
+
+  const selectedAccessMethods = accessMethodRule
+    ? (Array.isArray(accessMethodRule.value) ? accessMethodRule.value.map(String) : [String(accessMethodRule.value)])
+    : [];
+
+  const selectedDoorAccessPeriod: DoorAccessPeriod = doorAccessRule?.period || '3months';
 
   function toggleActivityStatus(value: string) {
     const current = [...selectedActivityStatuses];
@@ -66,6 +73,19 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
     updateDoorAccessRule(current);
   }
 
+  function toggleAccessMethod(value: string) {
+    const current = [...selectedAccessMethods];
+    const index = current.indexOf(value);
+
+    if (index > -1) {
+      current.splice(index, 1);
+    } else {
+      current.push(value);
+    }
+
+    updateAccessMethodRule(current);
+  }
+
   function updateActivityStatusRule(values: string[]) {
     const otherRules = rules.filter(r => r.type !== 'activity_status');
 
@@ -96,14 +116,42 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
     }
   }
 
-  function updateDoorAccessRule(values: string[]) {
+  function updateDoorAccessRule(values: string[], period?: DoorAccessPeriod) {
     const otherRules = rules.filter(r => r.type !== 'door_access');
+    const currentPeriod = period || selectedDoorAccessPeriod;
 
     if (values.length > 0 && values.length < 2) {
       // Only add rule if one is selected (not both, which means "all")
       onRulesChange([
         ...otherRules,
-        { type: 'door_access', value: values }
+        { type: 'door_access', value: values, period: currentPeriod }
+      ]);
+    } else {
+      // Both or none selected = no filter
+      onRulesChange(otherRules);
+    }
+  }
+
+  function updateDoorAccessPeriod(period: DoorAccessPeriod) {
+    const otherRules = rules.filter(r => r.type !== 'door_access');
+
+    // If we have selected doors, update the rule with new period
+    if (selectedDoorAccess.length > 0 && selectedDoorAccess.length < 2) {
+      onRulesChange([
+        ...otherRules,
+        { type: 'door_access', value: selectedDoorAccess, period }
+      ]);
+    }
+  }
+
+  function updateAccessMethodRule(values: string[]) {
+    const otherRules = rules.filter(r => r.type !== 'access_method');
+
+    if (values.length > 0 && values.length < 2) {
+      // Only add rule if one is selected (not both, which means "all")
+      onRulesChange([
+        ...otherRules,
+        { type: 'access_method', value: values }
       ]);
     } else {
       // Both or none selected = no filter
@@ -124,8 +172,19 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
   ];
 
   const doorAccessOptions = [
-    { value: 'GENTS', label: 'Herrsidan', description: 'Senaste 3 månader' },
-    { value: 'LADIES', label: 'Damsidan', description: 'Senaste 3 månader' },
+    { value: 'GENTS', label: 'Herrsidan' },
+    { value: 'LADIES', label: 'Damsidan' },
+  ];
+
+  const accessMethodOptions = [
+    { value: 'parakey', label: 'Parakey', description: 'Mobilapp-användare' },
+    { value: 'rfid', label: 'RFID-tagg', description: 'Endast tagg (ej mobilapp)' },
+  ];
+
+  const periodOptions = [
+    { value: 'week' as DoorAccessPeriod, label: 'Senaste veckan' },
+    { value: 'month' as DoorAccessPeriod, label: 'Senaste månaden' },
+    { value: '3months' as DoorAccessPeriod, label: 'Senaste kvartalet (3 mån)' },
   ];
 
   return (
@@ -199,6 +258,67 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
                     <div className="text-sm font-medium text-gray-900">
                       {option.label}
                     </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* Period selector - only show if a door is selected */}
+            {selectedDoorAccess.length > 0 && selectedDoorAccess.length < 2 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <h4 className="text-xs font-semibold text-gray-600 mb-2">Tidsperiod</h4>
+                <div className="space-y-1.5">
+                  {periodOptions.map(option => (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-md cursor-pointer hover:bg-gray-100 transition-colors"
+                    >
+                      <input
+                        type="radio"
+                        name="door_access_period"
+                        checked={selectedDoorAccessPeriod === option.value}
+                        onChange={() => updateDoorAccessPeriod(option.value)}
+                        className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                      />
+                      <span className="text-sm text-gray-700">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Access Method Section */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Accessmetod
+              </h3>
+              <p className="text-xs text-gray-500">
+                Välj båda eller ingen för att inkludera alla
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {accessMethodOptions.map(option => (
+                <label
+                  key={option.value}
+                  className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAccessMethods.includes(option.value)}
+                    onChange={() => toggleAccessMethod(option.value)}
+                    className="mt-0.5 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">
+                      {option.label}
+                    </div>
                     <div className="text-xs text-gray-500 mt-0.5">
                       {option.description}
                     </div>
@@ -253,7 +373,7 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
       </Card>
 
       {/* Summary */}
-      {(selectedActivityStatuses.length > 0 || selectedCategories.length > 0 || selectedDoorAccess.length > 0) && (
+      {(selectedActivityStatuses.length > 0 || selectedCategories.length > 0 || selectedDoorAccess.length > 0 || selectedAccessMethods.length > 0) && (
         <div className="text-xs text-gray-500 p-3 bg-purple-50 rounded-lg border border-purple-100">
           <span className="font-medium text-purple-700">Aktiva filter: </span>
           {selectedActivityStatuses.length === 0 && 'Alla aktivitetsstatuser, '}
@@ -261,8 +381,12 @@ export function RuleBuilder({ rules, onRulesChange }: RuleBuilderProps) {
           {selectedActivityStatuses.length === 2 && 'Alla aktivitetsstatuser, '}
 
           {selectedDoorAccess.length === 0 && 'alla dörrar, '}
-          {selectedDoorAccess.length === 1 && `${doorAccessOptions.find(o => o.value === selectedDoorAccess[0])?.label}, `}
+          {selectedDoorAccess.length === 1 && `${doorAccessOptions.find(o => o.value === selectedDoorAccess[0])?.label} (${periodOptions.find(p => p.value === selectedDoorAccessPeriod)?.label.toLowerCase()}), `}
           {selectedDoorAccess.length === 2 && 'alla dörrar, '}
+
+          {selectedAccessMethods.length === 0 && 'alla accessmetoder, '}
+          {selectedAccessMethods.length === 1 && `${accessMethodOptions.find(o => o.value === selectedAccessMethods[0])?.label}, `}
+          {selectedAccessMethods.length === 2 && 'alla accessmetoder, '}
 
           {selectedCategories.length === 0 && 'alla kategorier'}
           {selectedCategories.length > 0 && selectedCategories.length < 4 &&

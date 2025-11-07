@@ -69,6 +69,15 @@ export function GroupCard({ group, onClick }: GroupCardProps) {
           <span className="font-semibold text-[15px] text-gray-900 truncate">
             {group.name}
           </span>
+          {group.ai_created && (
+            <Badge
+              variant="secondary"
+              className="text-[11px] px-1.5 py-0 h-5 flex-shrink-0 bg-green-100 text-green-700 border-green-200"
+              title={group.ai_query || 'AI-skapad grupp'}
+            >
+              🤖 AI
+            </Badge>
+          )}
           <Badge
             variant="outline"
             className="text-[11px] px-1.5 py-0 h-5 flex-shrink-0"
