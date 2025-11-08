@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Search, Sparkles, User, Clock, MessageSquare } from 'lucide-react';
+import { Search, Sparkles, User, Clock, MessageSquare, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -25,6 +25,15 @@ export default function TemplatesOverview() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    template: '',
+    description: '',
+    category: ''
+  });
 
   useEffect(() => {
     loadTemplates();
@@ -60,6 +69,101 @@ export default function TemplatesOverview() {
       console.error('Error loading templates:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function openCreateDialog() {
+    setFormData({
+      name: '',
+      template: '',
+      description: '',
+      category: ''
+    });
+    setShowCreateDialog(true);
+  }
+
+  function openEditDialog(template: MessageTemplate) {
+    setEditingTemplate(template);
+    setFormData({
+      name: template.name,
+      template: template.template,
+      description: template.description || '',
+      category: template.category || ''
+    });
+    setShowEditDialog(true);
+  }
+
+  function closeDialogs() {
+    setShowEditDialog(false);
+    setShowCreateDialog(false);
+    setEditingTemplate(null);
+  }
+
+  async function handleCreate() {
+    try {
+      const { error } = await supabase
+        .from('message_templates')
+        .insert({
+          name: formData.name,
+          template: formData.template,
+          description: formData.description || null,
+          category: formData.category || null,
+          created_by_type: 'admin',
+          ai_generated: false,
+          usage_count: 0
+        });
+
+      if (error) throw error;
+
+      closeDialogs();
+      loadTemplates();
+    } catch (error) {
+      console.error('Error creating template:', error);
+      alert('Kunde inte skapa mall');
+    }
+  }
+
+  async function handleUpdate() {
+    if (!editingTemplate) return;
+
+    try {
+      const { error } = await supabase
+        .from('message_templates')
+        .update({
+          name: formData.name,
+          template: formData.template,
+          description: formData.description || null,
+          category: formData.category || null
+        })
+        .eq('id', editingTemplate.id);
+
+      if (error) throw error;
+
+      closeDialogs();
+      loadTemplates();
+    } catch (error) {
+      console.error('Error updating template:', error);
+      alert('Kunde inte uppdatera mall');
+    }
+  }
+
+  async function handleDelete(templateId: string, templateName: string) {
+    if (!confirm(`Är du säker på att du vill ta bort "${templateName}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('message_templates')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', templateId);
+
+      if (error) throw error;
+
+      loadTemplates();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert('Kunde inte ta bort mall');
     }
   }
 
@@ -110,6 +214,13 @@ export default function TemplatesOverview() {
               {templates.length} mallar totalt
             </p>
           </div>
+          <button
+            onClick={openCreateDialog}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            Ny mall
+          </button>
         </div>
 
         {/* Search bar */}
@@ -216,14 +327,32 @@ export default function TemplatesOverview() {
                           </p>
                         )}
                       </div>
-                      {template.category && (
-                        <Badge
-                          variant="outline"
-                          className={`text-xs flex-shrink-0 ${getCategoryColor(template.category)}`}
-                        >
-                          {template.category}
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {template.category && (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs flex-shrink-0 ${getCategoryColor(template.category)}`}
+                          >
+                            {template.category}
+                          </Badge>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEditDialog(template)}
+                            className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                            title="Redigera"
+                          >
+                            <Pencil className="h-4 w-4 text-gray-600" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(template.id, template.name)}
+                            className="p-1.5 hover:bg-red-50 rounded transition-colors"
+                            title="Ta bort"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Template preview */}
@@ -280,6 +409,110 @@ export default function TemplatesOverview() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Create/Edit Dialog */}
+      {(showCreateDialog || showEditDialog) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            {/* Dialog Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold">
+                {showCreateDialog ? 'Skapa ny mall' : 'Redigera mall'}
+              </h2>
+              <button
+                onClick={closeDialogs}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Dialog Content */}
+            <div className="p-4 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Namn <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="T.ex. Helghälsning"
+                />
+              </div>
+
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Kategori
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Välj kategori</option>
+                  <option value="helg">Helg</option>
+                  <option value="påminnelse">Påminnelse</option>
+                  <option value="info">Info</option>
+                  <option value="event">Event</option>
+                  <option value="övrigt">Övrigt</option>
+                </select>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Beskrivning
+                </label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Kort beskrivning av mallen"
+                />
+              </div>
+
+              {/* Template */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Malltext <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={formData.template}
+                  onChange={(e) => setFormData({ ...formData, template: e.target.value })}
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  placeholder="Använd {{variabel}} för variabler&#10;T.ex: Hej {{first_name}}!"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Använd <code className="px-1 bg-gray-100 rounded">{'{{variabel}}'}</code> för dynamiska värden
+                </p>
+              </div>
+            </div>
+
+            {/* Dialog Footer */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
+              <button
+                onClick={closeDialogs}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={showCreateDialog ? handleCreate : handleUpdate}
+                disabled={!formData.name || !formData.template}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {showCreateDialog ? 'Skapa' : 'Spara'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
