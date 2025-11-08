@@ -187,13 +187,17 @@ export function SMSThread() {
 
   async function loadMessagesWithInfo(info: ThreadInfo) {
     // Load messages in this thread (individual conversation messages)
-    const { data: threadMessages } = await supabase
+    const { data: allThreadMessages } = await supabase
       .from('sms_queue')
       .select('*')
       .eq('thread_id', threadId)
-      .or('is_system.is.null,is_system.eq.false')  // Exclude system messages (AI messages use is_ai flag instead)
-      .or('ai_response_skipped.is.null,ai_response_skipped.eq.false')  // Exclude iPhone reactions
       .order('created_at', { ascending: true });
+
+    // Filter out system messages and iPhone reactions
+    const threadMessages = allThreadMessages?.filter(msg =>
+      (!msg.is_system || msg.is_system === false) &&
+      (!msg.ai_response_skipped || msg.ai_response_skipped === false)
+    ) || [];
 
     // Also load broadcast messages sent to this phone number using broadcast_id
     const { data: broadcastMessages } = await supabase
