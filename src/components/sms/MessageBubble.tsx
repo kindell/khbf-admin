@@ -9,6 +9,7 @@ interface MessageBubbleProps {
   isFirstInGroup?: boolean;
   isLastInGroup?: boolean;
   showTimestampOnLoad?: boolean;
+  reactionEmoji?: string | null;
 }
 
 function cn(...classes: (string | boolean | undefined)[]) {
@@ -31,7 +32,8 @@ export function MessageBubble({
   status,
   isFirstInGroup = true,
   isLastInGroup = true,
-  showTimestampOnLoad = false
+  showTimestampOnLoad = false,
+  reactionEmoji = null
 }: MessageBubbleProps) {
   const [showTimestamp, setShowTimestamp] = useState(showTimestampOnLoad);
 
@@ -79,26 +81,45 @@ export function MessageBubble({
       )}
 
       {/* Bubble */}
-      <div
-        onClick={() => setShowTimestamp(!showTimestamp)}
-        className={cn(
-          "px-4 py-2.5 max-w-[70%] break-words cursor-pointer",
-          "transition-all duration-200 ease-out",
-          borderRadiusClass,
+      <div className="relative">
+        <div
+          onClick={() => setShowTimestamp(!showTimestamp)}
+          className={cn(
+            "px-4 py-2.5 max-w-[70%] break-words cursor-pointer",
+            "transition-all duration-200 ease-out",
+            borderRadiusClass,
 
-          // Outbound (blue iMessage style)
-          direction === 'outbound' && "bg-[#007AFF] text-white",
-          direction === 'outbound' && "ml-auto",
-          direction === 'outbound' && "shadow-sm shadow-black/10",
+            // Outbound (blue iMessage style)
+            direction === 'outbound' && "bg-[#007AFF] text-white",
+            direction === 'outbound' && "ml-auto",
+            direction === 'outbound' && "shadow-sm shadow-black/10",
 
-          // Inbound (gray)
-          direction === 'inbound' && "bg-[#E5E5EA] text-black",
-          direction === 'inbound' && "mr-auto"
+            // Inbound (gray)
+            direction === 'inbound' && "bg-[#E5E5EA] text-black",
+            direction === 'inbound' && "mr-auto"
+          )}
+        >
+          <p className="text-[17px] leading-[22px] tracking-[-0.4px] whitespace-pre-wrap">
+            {message}
+          </p>
+        </div>
+
+        {/* Reaction Emoji Badge */}
+        {reactionEmoji && (
+          <div
+            className={cn(
+              "absolute -bottom-1.5 flex items-center justify-center",
+              "bg-white rounded-full",
+              "border-2 border-gray-100",
+              "shadow-md",
+              "w-7 h-7",
+              "text-base",
+              direction === 'outbound' ? "-right-1.5" : "-left-1.5"
+            )}
+          >
+            {reactionEmoji}
+          </div>
         )}
-      >
-        <p className="text-[17px] leading-[22px] tracking-[-0.4px] whitespace-pre-wrap">
-          {message}
-        </p>
       </div>
 
       {/* Status (only for outbound, only last in group) */}

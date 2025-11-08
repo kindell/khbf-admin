@@ -22,6 +22,7 @@ interface SMS {
   is_system?: boolean;
   is_broadcast?: boolean;
   broadcast_recipient_count?: number;
+  reaction_emoji?: string | null;
 }
 
 interface ThreadInfo {
@@ -349,6 +350,7 @@ export function SMSThread() {
                 isFirstInGroup={msg.isFirstInGroup}
                 isLastInGroup={msg.isLastInGroup}
                 showTimestampOnLoad={msg.showTimestampOnLoad}
+                reactionEmoji={msg.reaction_emoji}
               />
             ))
           )}
