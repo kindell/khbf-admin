@@ -10,6 +10,7 @@ interface MessageBubbleProps {
   isLastInGroup?: boolean;
   showTimestampOnLoad?: boolean;
   reactionEmoji?: string | null;
+  isAI?: boolean;
 }
 
 function cn(...classes: (string | boolean | undefined)[]) {
@@ -33,7 +34,8 @@ export function MessageBubble({
   isFirstInGroup = true,
   isLastInGroup = true,
   showTimestampOnLoad = false,
-  reactionEmoji = null
+  reactionEmoji = null,
+  isAI = false
 }: MessageBubbleProps) {
   const [showTimestamp, setShowTimestamp] = useState(showTimestampOnLoad);
 
@@ -122,15 +124,20 @@ export function MessageBubble({
         )}
       </div>
 
-      {/* Status (only for outbound, only last in group) */}
-      {direction === 'outbound' && isLastInGroup && status && (
-        <div className="text-xs text-gray-500 px-4 mt-0.5">
-          {status === 'pending' && 'Sending...'}
-          {status === 'sent' && 'Sent'}
-          {status === 'delivered' && 'Delivered'}
-          {status === 'failed' && (
-            <span className="text-red-500">Not Delivered</span>
+      {/* Status and AI indicator (only for outbound, only last in group) */}
+      {direction === 'outbound' && isLastInGroup && (status || isAI) && (
+        <div className="text-xs text-gray-500 px-4 mt-0.5 flex items-center gap-2">
+          {status && (
+            <>
+              {status === 'pending' && 'Sending...'}
+              {status === 'sent' && 'Sent'}
+              {status === 'delivered' && 'Delivered'}
+              {status === 'failed' && (
+                <span className="text-red-500">Not Delivered</span>
+              )}
+            </>
           )}
+          {isAI && <span className="opacity-60">🤖 AI</span>}
         </div>
       )}
     </div>
