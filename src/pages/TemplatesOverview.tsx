@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Search, Sparkles, User, Clock, MessageSquare, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { VariableHelper } from '../components/sms/VariableHelper';
 
 interface MessageTemplate {
   id: string;
@@ -34,6 +35,7 @@ export default function TemplatesOverview() {
     description: '',
     category: ''
   });
+  const templateTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -165,6 +167,26 @@ export default function TemplatesOverview() {
       console.error('Error deleting template:', error);
       alert('Kunde inte ta bort mall');
     }
+  }
+
+  function insertVariable(variable: string) {
+    if (!templateTextareaRef.current) return;
+
+    const textarea = templateTextareaRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentText = formData.template;
+
+    // Insert variable at cursor position
+    const newText = currentText.substring(0, start) + variable + currentText.substring(end);
+
+    setFormData({ ...formData, template: newText });
+
+    // Set cursor position after inserted variable
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + variable.length, start + variable.length);
+    }, 0);
   }
 
   const filteredTemplates = templates.filter(template => {
@@ -484,15 +506,18 @@ export default function TemplatesOverview() {
                   Malltext <span className="text-red-500">*</span>
                 </label>
                 <textarea
+                  ref={templateTextareaRef}
                   value={formData.template}
                   onChange={(e) => setFormData({ ...formData, template: e.target.value })}
                   rows={6}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                   placeholder="Använd {{variabel}} för variabler&#10;T.ex: Hej {{first_name}}!"
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Använd <code className="px-1 bg-gray-100 rounded">{'{{variabel}}'}</code> för dynamiska värden
-                </p>
+
+                {/* Variable Helper */}
+                <div className="mt-3">
+                  <VariableHelper onInsertVariable={insertVariable} />
+                </div>
               </div>
             </div>
 
