@@ -193,11 +193,38 @@ export function SMSThread() {
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true });
 
+    // iPhone reaction patterns to filter out
+    const reactionPatterns = [
+      /^Liked\s+[""]/i,
+      /^Loved\s+[""]/i,
+      /^Laughed at\s+[""]/i,
+      /^Emphasized\s+[""]/i,
+      /^Disliked\s+[""]/i,
+      /^Questioned\s+[""]/i,
+      /^Gillad\s+[""]/i,
+      /^Gillade\s+[""]/i,
+      /^Älskad\s+[""]/i,
+      /^Älskade\s+[""]/i,
+      /^Skrattade åt\s+[""]/i,
+      /^Framhöll\s+[""]/i,
+      /^Ogillade\s+[""]/i,
+      /^Ifrågasatte\s+[""]/i
+    ];
+
     // Filter out system messages and iPhone reactions
-    const threadMessages = allThreadMessages?.filter(msg =>
-      (!msg.is_system || msg.is_system === false) &&
-      (!msg.ai_response_skipped || msg.ai_response_skipped === false)
-    ) || [];
+    const threadMessages = allThreadMessages?.filter(msg => {
+      // Exclude system messages
+      if (msg.is_system === true) return false;
+
+      // Exclude messages marked as skipped reactions
+      if (msg.ai_response_skipped === true) return false;
+
+      // Exclude messages that match iPhone reaction patterns
+      const isReaction = reactionPatterns.some(pattern => pattern.test(msg.message));
+      if (isReaction) return false;
+
+      return true;
+    }) || [];
 
     // Also load broadcast messages sent to this phone number using broadcast_id
     const { data: broadcastMessages } = await supabase
