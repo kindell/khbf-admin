@@ -18,10 +18,10 @@ function cn(...classes: (string | boolean | undefined)[]) {
 
 function formatTime(timestamp: string): string {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
+  return date.toLocaleTimeString('sv-SE', {
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: true
+    hour12: false
   });
 }
 
@@ -85,7 +85,7 @@ export function MessageBubble({
         <div
           onClick={() => setShowTimestamp(!showTimestamp)}
           className={cn(
-            "px-4 py-2.5 max-w-[70%] break-words cursor-pointer",
+            "px-4 py-2.5 max-w-[65%] break-words cursor-pointer",
             "transition-all duration-200 ease-out",
             borderRadiusClass,
 
