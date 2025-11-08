@@ -192,6 +192,7 @@ export function SMSThread() {
       .select('*')
       .eq('thread_id', threadId)
       .or('is_system.is.null,is_system.eq.false')  // Exclude system messages (AI messages use is_ai flag instead)
+      .or('ai_response_skipped.is.null,ai_response_skipped.eq.false')  // Exclude iPhone reactions
       .order('created_at', { ascending: true });
 
     // Also load broadcast messages sent to this phone number using broadcast_id
