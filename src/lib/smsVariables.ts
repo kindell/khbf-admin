@@ -17,9 +17,12 @@ export interface MemberWithVisits {
  */
 export const SMS_VARIABLES = {
   '{{förnamn}}': 'Mottagarens förnamn',
+  '{{efternamn}}': 'Mottagarens efternamn',
+  '{{namn}}': 'Fullständigt namn (förnamn + efternamn)',
   '{{besök_vecka}}': 'Antal besök senaste veckan',
   '{{besök_kvartal}}': 'Antal besök senaste kvartalet (3 mån)',
   '{{dagar_sedan}}': 'Antal dagar sedan senaste besök',
+  '{{senaste_besök}}': 'Datum för senaste besök (t.ex. "5 november")',
 } as const;
 
 /**
@@ -51,6 +54,13 @@ export function replaceMessageVariables(
   // Replace {{förnamn}}
   message = message.replace(/\{\{förnamn\}\}/gi, member.first_name || '');
 
+  // Replace {{efternamn}}
+  message = message.replace(/\{\{efternamn\}\}/gi, member.last_name || '');
+
+  // Replace {{namn}}
+  const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+  message = message.replace(/\{\{namn\}\}/gi, fullName);
+
   // Replace {{besök_vecka}}
   message = message.replace(
     /\{\{besök_vecka\}\}/gi,
@@ -66,6 +76,19 @@ export function replaceMessageVariables(
   // Replace {{dagar_sedan}}
   const daysSince = calculateDaysSinceLastVisit(member.last_visit_at);
   message = message.replace(/\{\{dagar_sedan\}\}/gi, daysSince.toString());
+
+  // Replace {{senaste_besök}}
+  if (member.last_visit_at) {
+    const lastVisitDate = new Date(member.last_visit_at);
+    const formattedDate = lastVisitDate.toLocaleDateString('sv-SE', {
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Europe/Stockholm'
+    });
+    message = message.replace(/\{\{senaste_besök\}\}/gi, formattedDate);
+  } else {
+    message = message.replace(/\{\{senaste_besök\}\}/gi, 'aldrig');
+  }
 
   return message;
 }
