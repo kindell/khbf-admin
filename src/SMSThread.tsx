@@ -194,21 +194,22 @@ export function SMSThread() {
       .order('created_at', { ascending: true });
 
     // iPhone reaction patterns to filter out
+    // Using Unicode escapes for straight (") and curly quotes ("")
     const reactionPatterns = [
-      /^Liked\s+[""]/i,
-      /^Loved\s+[""]/i,
-      /^Laughed at\s+[""]/i,
-      /^Emphasized\s+[""]/i,
-      /^Disliked\s+[""]/i,
-      /^Questioned\s+[""]/i,
-      /^Gillad\s+[""]/i,
-      /^Gillade\s+[""]/i,
-      /^Älskad\s+[""]/i,
-      /^Älskade\s+[""]/i,
-      /^Skrattade åt\s+[""]/i,
-      /^Framhöll\s+[""]/i,
-      /^Ogillade\s+[""]/i,
-      /^Ifrågasatte\s+[""]/i
+      /^Liked\s+[\u0022\u201C\u201D]/i,
+      /^Loved\s+[\u0022\u201C\u201D]/i,
+      /^Laughed at\s+[\u0022\u201C\u201D]/i,
+      /^Emphasized\s+[\u0022\u201C\u201D]/i,
+      /^Disliked\s+[\u0022\u201C\u201D]/i,
+      /^Questioned\s+[\u0022\u201C\u201D]/i,
+      /^Gillad\s+[\u0022\u201C\u201D]/i,
+      /^Gillade\s+[\u0022\u201C\u201D]/i,
+      /^Älskad\s+[\u0022\u201C\u201D]/i,
+      /^Älskade\s+[\u0022\u201C\u201D]/i,
+      /^Skrattade åt\s+[\u0022\u201C\u201D]/i,
+      /^Framhöll\s+[\u0022\u201C\u201D]/i,
+      /^Ogillade\s+[\u0022\u201C\u201D]/i,
+      /^Ifrågasatte\s+[\u0022\u201C\u201D]/i
     ];
 
     // Filter out system messages and iPhone reactions
