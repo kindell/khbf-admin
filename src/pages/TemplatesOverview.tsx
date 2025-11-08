@@ -1,0 +1,287 @@
+import { useEffect, useState } from 'react';
+import { Search, Sparkles, User, Clock, MessageSquare } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Card, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { formatDistanceToNow } from 'date-fns';
+import { sv } from 'date-fns/locale';
+
+interface MessageTemplate {
+  id: string;
+  name: string;
+  template: string;
+  description: string | null;
+  variables_used: string[] | null;
+  category: string | null;
+  created_by_type: 'ai' | 'admin';
+  ai_generated: boolean;
+  usage_count: number;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+export default function TemplatesOverview() {
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadTemplates();
+
+    // Subscribe to template changes
+    const subscription = supabase
+      .channel('message_templates_changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'message_templates' },
+        () => {
+          loadTemplates();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  async function loadTemplates() {
+    try {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .select('*')
+        .is('deleted_at', null)
+        .order('usage_count', { ascending: false });
+
+      if (error) throw error;
+
+      setTemplates(data || []);
+    } catch (error) {
+      console.error('Error loading templates:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const filteredTemplates = templates.filter(template => {
+    const matchesSearch =
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.template.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory = !categoryFilter || template.category === categoryFilter;
+
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get unique categories
+  const categories = Array.from(new Set(templates.map(t => t.category).filter(Boolean))) as string[];
+
+  const getCategoryColor = (category: string | null) => {
+    const colors: Record<string, string> = {
+      'helg': 'bg-purple-100 text-purple-700 border-purple-200',
+      'påminnelse': 'bg-blue-100 text-blue-700 border-blue-200',
+      'info': 'bg-gray-100 text-gray-700 border-gray-200',
+      'event': 'bg-green-100 text-green-700 border-green-200',
+      'övrigt': 'bg-orange-100 text-orange-700 border-orange-200'
+    };
+    return category ? colors[category] || colors['övrigt'] : colors['övrigt'];
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-600">Laddar mallar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div>
+            <h1 className="text-xl font-semibold">Mallar</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {templates.length} mallar totalt
+            </p>
+          </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-4 pb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Sök mallar..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="
+                w-full pl-10 pr-4 py-2
+                bg-gray-100 rounded-lg
+                text-sm
+                focus:outline-none focus:ring-2 focus:ring-blue-500
+                placeholder:text-gray-400
+              "
+            />
+          </div>
+        </div>
+
+        {/* Category filters */}
+        {categories.length > 0 && (
+          <div className="px-4 pb-3">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <button
+                onClick={() => setCategoryFilter(null)}
+                className={`
+                  px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap
+                  transition-colors
+                  ${!categoryFilter
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }
+                `}
+              >
+                Alla
+              </button>
+              {categories.map(category => (
+                <button
+                  key={category}
+                  onClick={() => setCategoryFilter(category)}
+                  className={`
+                    px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap
+                    transition-colors border
+                    ${categoryFilter === category
+                      ? getCategoryColor(category)
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Empty state */}
+      {templates.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <MessageSquare className="h-8 w-8 text-gray-400" />
+          </div>
+          <h2 className="text-lg font-semibold mb-2">Inga mallar än</h2>
+          <p className="text-sm text-gray-600 text-center mb-6 max-w-xs">
+            Mallar skapas automatiskt när du skickar gruppmeddelanden via AI
+          </p>
+        </div>
+      )}
+
+      {/* Templates list */}
+      {templates.length > 0 && (
+        <div className="pb-6">
+          {filteredTemplates.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <p className="text-sm text-gray-600">
+                Inga mallar matchar "{searchQuery}"
+              </p>
+            </div>
+          ) : (
+            <div className="px-4 pt-4 space-y-3">
+              {filteredTemplates.map(template => (
+                <Card key={template.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-sm truncate">
+                            {template.name}
+                          </h3>
+                          {template.ai_generated ? (
+                            <Sparkles className="h-3.5 w-3.5 text-purple-600 flex-shrink-0" />
+                          ) : (
+                            <User className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                          )}
+                        </div>
+                        {template.description && (
+                          <p className="text-xs text-gray-500 line-clamp-1">
+                            {template.description}
+                          </p>
+                        )}
+                      </div>
+                      {template.category && (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs flex-shrink-0 ${getCategoryColor(template.category)}`}
+                        >
+                          {template.category}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Template preview */}
+                    <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {template.template}
+                      </p>
+                    </div>
+
+                    {/* Variables */}
+                    {template.variables_used && template.variables_used.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-medium text-gray-500 mb-1.5">
+                          Variabler:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {template.variables_used.map(variable => (
+                            <code
+                              key={variable}
+                              className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-mono border border-blue-200"
+                            >
+                              {`{{${variable}}}`}
+                            </code>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer stats */}
+                    <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          <span>{template.usage_count} användningar</span>
+                        </div>
+                        {template.last_used_at && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>
+                              {formatDistanceToNow(new Date(template.last_used_at), {
+                                addSuffix: true,
+                                locale: sv
+                              })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {template.ai_generated ? 'AI-genererad' : 'Manuell'}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

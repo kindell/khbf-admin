@@ -55,38 +55,36 @@ export function GroupDetail() {
     loadMessages();
   }, [groupId]);
 
-  // Realtime subscription for new broadcast messages
+  // Realtime subscription for broadcast updates
   useEffect(() => {
     if (!groupId) return;
 
-    // Listen for new SMS messages with this broadcast_id
+    // Listen for updates to the broadcast (when new messages are sent)
     const subscription = supabase
-      .channel(`broadcast_messages_${groupId}`)
+      .channel(`broadcast_${groupId}`)
       .on('postgres_changes',
         {
-          event: 'INSERT',
+          event: 'UPDATE',
           schema: 'public',
-          table: 'sms_queue',
-          filter: `broadcast_id=eq.${groupId}`
+          table: 'sms_broadcasts',
+          filter: `id=eq.${groupId}`
         },
         (payload) => {
-          const newSMS = payload.new as SMS;
+          const updated = payload.new as any;
 
-          if (!newSMS.is_system) {
-            setMessages(prev => {
-              // Check if we already have this exact message (by ID)
-              const exists = prev.some(msg => msg.id === newSMS.id);
-              if (exists) return prev;
+          // Update the displayed message with the new broadcast message
+          setMessages([{
+            id: groupId,
+            direction: 'outbound',
+            phone_number: '',
+            message: updated.message,
+            created_at: updated.sent_at || updated.created_at,
+            status: 'sent',
+            sent_at: updated.sent_at,
+            is_system: false
+          }]);
 
-              // Check if we already have a message with same content (deduplicate by content only)
-              const duplicateExists = prev.some(msg => msg.message === newSMS.message);
-
-              if (duplicateExists) return prev;
-
-              return [...prev, newSMS];
-            });
-            scrollToBottom();
-          }
+          scrollToBottom();
         }
       )
       .subscribe();
@@ -144,36 +142,34 @@ export function GroupDetail() {
   async function loadMessages() {
     if (!groupId) return;
 
-    // Get ONLY the SMS messages that are part of this broadcast using broadcast_id
-    const { data: smsData, error } = await supabase
-      .from('sms_queue')
-      .select('*')
-      .eq('broadcast_id', groupId)
-      .or('is_system.is.null,is_system.eq.false')  // Exclude system messages
-      .order('created_at', { ascending: true });
+    // For broadcasts, we only want to show the broadcast message template
+    // not all the individual personalized messages
+    const { data: broadcast, error } = await supabase
+      .from('sms_broadcasts')
+      .select('message, sent_at, created_at')
+      .eq('id', groupId)
+      .single();
 
     if (error) {
-      console.error('Failed to load messages:', error);
+      console.error('Failed to load broadcast:', error);
       setLoading(false);
       return;
     }
 
-    // Deduplicate messages - same message content should only show once per broadcast
-    // Since all messages in a broadcast have the same broadcast_id, we just need to dedupe by message content
-    const uniqueMessages: SMS[] = [];
-    const seen = new Map<string, SMS>();
-
-    for (const msg of (smsData as SMS[]) || []) {
-      // Create a key based on message content only (all messages here have same broadcast_id)
-      const key = msg.message;
-
-      if (!seen.has(key)) {
-        seen.set(key, msg);
-        uniqueMessages.push(msg);
-      }
+    // Create a single message representing the broadcast
+    if (broadcast) {
+      setMessages([{
+        id: groupId,
+        direction: 'outbound',
+        phone_number: '',
+        message: broadcast.message,
+        created_at: broadcast.sent_at || broadcast.created_at,
+        status: 'sent',
+        sent_at: broadcast.sent_at,
+        is_system: false
+      }]);
     }
 
-    setMessages(uniqueMessages);
     setLoading(false);
   }
 
