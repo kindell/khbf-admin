@@ -198,10 +198,47 @@ export default function AptusOverview() {
     );
   }
 
-  // Count occurrences for RFID numbers
-  function getRFIDCount(rfid: string | null) {
-    if (!rfid) return 0;
-    return events.filter(e => e.accesscredential === rfid).length;
+  // Group events by RFID for unidentified tab
+  function getGroupedRFIDData() {
+    const rfidMap = new Map<string, AptusEvent[]>();
+
+    filteredEvents.forEach(event => {
+      if (!event.accesscredential) return;
+
+      const existing = rfidMap.get(event.accesscredential) || [];
+      existing.push(event);
+      rfidMap.set(event.accesscredential, existing);
+    });
+
+    return Array.from(rfidMap.entries()).map(([rfid, events]) => {
+      // Sort by time to get first and last
+      const sorted = events.sort((a, b) =>
+        new Date(a.eventtime).getTime() - new Date(b.eventtime).getTime()
+      );
+
+      // Get most common department and eventtype
+      const deptCounts = new Map<string, number>();
+      const typeCounts = new Map<string, number>();
+
+      events.forEach(e => {
+        deptCounts.set(e.department, (deptCounts.get(e.department) || 0) + 1);
+        typeCounts.set(e.eventtype, (typeCounts.get(e.eventtype) || 0) + 1);
+      });
+
+      const mostCommonDept = Array.from(deptCounts.entries())
+        .sort((a, b) => b[1] - a[1])[0][0];
+      const mostCommonType = Array.from(typeCounts.entries())
+        .sort((a, b) => b[1] - a[1])[0][0];
+
+      return {
+        rfid,
+        count: events.length,
+        firstAttempt: sorted[0].eventtime,
+        lastAttempt: sorted[sorted.length - 1].eventtime,
+        department: mostCommonDept as 'LADIES' | 'GENTS',
+        eventtype: mostCommonType as 'DOOR' | 'REGISTRATION',
+      };
+    }).sort((a, b) => b.count - a.count); // Sort by count descending
   }
 
   return (
@@ -374,43 +411,67 @@ export default function AptusOverview() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tidpunkt</TableHead>
-                    {activeTab === 'blocked' && <TableHead>Användare</TableHead>}
-                    {activeTab === 'blocked' && <TableHead>User ID</TableHead>}
-                    <TableHead>Avdelning</TableHead>
-                    <TableHead>Typ</TableHead>
-                    <TableHead>RFID</TableHead>
-                    {activeTab === 'unidentified' && <TableHead>Antal försök</TableHead>}
+                    {activeTab === 'unidentified' ? (
+                      <>
+                        <TableHead>RFID-nummer</TableHead>
+                        <TableHead>Antal försök</TableHead>
+                        <TableHead>Första försök</TableHead>
+                        <TableHead>Senaste försök</TableHead>
+                        <TableHead>Avdelning</TableHead>
+                        <TableHead>Typ</TableHead>
+                      </>
+                    ) : (
+                      <>
+                        <TableHead>Tidpunkt</TableHead>
+                        <TableHead>Användare</TableHead>
+                        <TableHead>User ID</TableHead>
+                        <TableHead>Avdelning</TableHead>
+                        <TableHead>Typ</TableHead>
+                        <TableHead>RFID</TableHead>
+                      </>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEvents.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell className="font-mono text-sm">
-                        {formatTimestamp(event.eventtime)}
-                      </TableCell>
-                      {activeTab === 'blocked' && (
-                        <TableCell>{event.username || 'Okänd'}</TableCell>
-                      )}
-                      {activeTab === 'blocked' && (
-                        <TableCell className="font-mono text-sm">
-                          {event.userid || 'N/A'}
+                  {activeTab === 'unidentified' ? (
+                    getGroupedRFIDData().map((item) => (
+                      <TableRow key={item.rfid}>
+                        <TableCell className="font-mono font-medium">
+                          {item.rfid}
                         </TableCell>
-                      )}
-                      <TableCell>{getDepartmentBadge(event.department)}</TableCell>
-                      <TableCell>{getEventTypeBadge(event.eventtype)}</TableCell>
-                      <TableCell className="font-mono">
-                        {event.accesscredential || 'N/A'}
-                      </TableCell>
-                      {activeTab === 'unidentified' && (
                         <TableCell>
-                          <Badge variant="outline">
-                            {getRFIDCount(event.accesscredential)}x
+                          <Badge variant="destructive">
+                            {item.count}x
                           </Badge>
                         </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
+                        <TableCell className="font-mono text-sm">
+                          {formatTimestamp(item.firstAttempt)}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {formatTimestamp(item.lastAttempt)}
+                        </TableCell>
+                        <TableCell>{getDepartmentBadge(item.department)}</TableCell>
+                        <TableCell>{getEventTypeBadge(item.eventtype)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    filteredEvents.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell className="font-mono text-sm">
+                          {formatTimestamp(event.eventtime)}
+                        </TableCell>
+                        <TableCell>{event.username || 'Okänd'}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {event.userid && event.userid !== 'null' ? event.userid : '-'}
+                        </TableCell>
+                        <TableCell>{getDepartmentBadge(event.department)}</TableCell>
+                        <TableCell>{getEventTypeBadge(event.eventtype)}</TableCell>
+                        <TableCell className="font-mono">
+                          {event.accesscredential || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>
