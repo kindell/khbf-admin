@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Search, ShieldAlert, ShieldX, Clock } from 'lucide-react';
+import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -36,6 +36,8 @@ interface Stats {
 
 type TabType = 'unidentified' | 'blocked';
 type TimeFilterType = '7' | '30' | '90';
+type SortField = 'rfid' | 'count' | 'firstAttempt' | 'lastAttempt' | 'department' | 'eventtype' | 'eventtime' | 'username' | 'userid' | 'accesscredential';
+type SortDirection = 'asc' | 'desc';
 
 export default function AptusOverview() {
   const [events, setEvents] = useState<AptusEvent[]>([]);
@@ -48,6 +50,8 @@ export default function AptusOverview() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortField, setSortField] = useState<SortField>('count');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [activeTab, setActiveTab] = useState<TabType>('unidentified');
   const [departmentFilter, setDepartmentFilter] = useState<'ALL' | 'LADIES' | 'GENTS'>('ALL');
   const [eventTypeFilter, setEventTypeFilter] = useState<'ALL' | 'DOOR' | 'REGISTRATION'>('ALL');
@@ -78,6 +82,17 @@ export default function AptusOverview() {
   useEffect(() => {
     filterEvents();
   }, [events, search, activeTab, departmentFilter, eventTypeFilter]);
+
+  // Reset sort when changing tabs
+  useEffect(() => {
+    if (activeTab === 'unidentified') {
+      setSortField('count');
+      setSortDirection('desc');
+    } else {
+      setSortField('eventtime');
+      setSortDirection('desc');
+    }
+  }, [activeTab]);
 
   async function loadEvents() {
     setLoading(true);
@@ -198,6 +213,40 @@ export default function AptusOverview() {
     );
   }
 
+  // Handle sort click
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'count' ? 'desc' : 'asc');
+    }
+  }
+
+  // Sortable header component
+  function SortableHeader({ field, children }: { field: SortField; children: React.ReactNode }) {
+    const isActive = sortField === field;
+    return (
+      <TableHead>
+        <button
+          onClick={() => handleSort(field)}
+          className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+        >
+          {children}
+          {isActive ? (
+            sortDirection === 'asc' ? (
+              <ArrowUp className="h-4 w-4" />
+            ) : (
+              <ArrowDown className="h-4 w-4" />
+            )
+          ) : (
+            <ArrowUpDown className="h-4 w-4 opacity-0 group-hover:opacity-50" />
+          )}
+        </button>
+      </TableHead>
+    );
+  }
+
   // Group events by RFID for unidentified tab
   function getGroupedRFIDData() {
     const rfidMap = new Map<string, AptusEvent[]>();
@@ -210,7 +259,7 @@ export default function AptusOverview() {
       rfidMap.set(event.accesscredential, existing);
     });
 
-    return Array.from(rfidMap.entries()).map(([rfid, events]) => {
+    const grouped = Array.from(rfidMap.entries()).map(([rfid, events]) => {
       // Sort by time to get first and last
       const sorted = events.sort((a, b) =>
         new Date(a.eventtime).getTime() - new Date(b.eventtime).getTime()
@@ -238,7 +287,65 @@ export default function AptusOverview() {
         department: mostCommonDept as 'LADIES' | 'GENTS',
         eventtype: mostCommonType as 'DOOR' | 'REGISTRATION',
       };
-    }).sort((a, b) => b.count - a.count); // Sort by count descending
+    });
+
+    // Apply sorting
+    return grouped.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'rfid':
+          comparison = a.rfid.localeCompare(b.rfid);
+          break;
+        case 'count':
+          comparison = a.count - b.count;
+          break;
+        case 'firstAttempt':
+          comparison = new Date(a.firstAttempt).getTime() - new Date(b.firstAttempt).getTime();
+          break;
+        case 'lastAttempt':
+          comparison = new Date(a.lastAttempt).getTime() - new Date(b.lastAttempt).getTime();
+          break;
+        case 'department':
+          comparison = a.department.localeCompare(b.department);
+          break;
+        case 'eventtype':
+          comparison = a.eventtype.localeCompare(b.eventtype);
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }
+
+  // Get sorted blocked events
+  function getSortedBlockedEvents() {
+    return [...filteredEvents].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'eventtime':
+          comparison = new Date(a.eventtime).getTime() - new Date(b.eventtime).getTime();
+          break;
+        case 'username':
+          comparison = (a.username || '').localeCompare(b.username || '');
+          break;
+        case 'userid':
+          comparison = (a.userid || '').localeCompare(b.userid || '');
+          break;
+        case 'department':
+          comparison = a.department.localeCompare(b.department);
+          break;
+        case 'eventtype':
+          comparison = a.eventtype.localeCompare(b.eventtype);
+          break;
+        case 'accesscredential':
+          comparison = (a.accesscredential || '').localeCompare(b.accesscredential || '');
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
   }
 
   return (
@@ -413,21 +520,21 @@ export default function AptusOverview() {
                   <TableRow>
                     {activeTab === 'unidentified' ? (
                       <>
-                        <TableHead>RFID-nummer</TableHead>
-                        <TableHead>Antal försök</TableHead>
-                        <TableHead>Första försök</TableHead>
-                        <TableHead>Senaste försök</TableHead>
-                        <TableHead>Avdelning</TableHead>
-                        <TableHead>Typ</TableHead>
+                        <SortableHeader field="rfid">RFID-nummer</SortableHeader>
+                        <SortableHeader field="count">Antal försök</SortableHeader>
+                        <SortableHeader field="firstAttempt">Första försök</SortableHeader>
+                        <SortableHeader field="lastAttempt">Senaste försök</SortableHeader>
+                        <SortableHeader field="department">Avdelning</SortableHeader>
+                        <SortableHeader field="eventtype">Typ</SortableHeader>
                       </>
                     ) : (
                       <>
-                        <TableHead>Tidpunkt</TableHead>
-                        <TableHead>Användare</TableHead>
-                        <TableHead>User ID</TableHead>
-                        <TableHead>Avdelning</TableHead>
-                        <TableHead>Typ</TableHead>
-                        <TableHead>RFID</TableHead>
+                        <SortableHeader field="eventtime">Tidpunkt</SortableHeader>
+                        <SortableHeader field="username">Användare</SortableHeader>
+                        <SortableHeader field="userid">User ID</SortableHeader>
+                        <SortableHeader field="department">Avdelning</SortableHeader>
+                        <SortableHeader field="eventtype">Typ</SortableHeader>
+                        <SortableHeader field="accesscredential">RFID</SortableHeader>
                       </>
                     )}
                   </TableRow>
@@ -455,7 +562,7 @@ export default function AptusOverview() {
                       </TableRow>
                     ))
                   ) : (
-                    filteredEvents.map((event) => (
+                    getSortedBlockedEvents().map((event) => (
                       <TableRow key={event.id}>
                         <TableCell className="font-mono text-sm">
                           {formatTimestamp(event.eventtime)}
