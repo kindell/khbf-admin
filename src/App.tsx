@@ -12,6 +12,7 @@ import { SidebarProvider } from './contexts/SidebarContext';
 const MemberList = lazy(() => import('./MemberList'));
 const MemberDetail = lazy(() => import('./MemberDetail'));
 const ParakeyMapping = lazy(() => import('./ParakeyMapping'));
+const AptusOverview = lazy(() => import('./pages/AptusOverview'));
 const SMSInbox = lazy(() => import('./SMSInbox').then(module => ({ default: module.SMSInbox })));
 const SMSThread = lazy(() => import('./SMSThread').then(module => ({ default: module.SMSThread })));
 const GroupDetail = lazy(() => import('./components/GroupDetail').then(module => ({ default: module.GroupDetail })));
@@ -444,6 +445,10 @@ function App() {
           <Route
             path="/parakey-mapping"
             element={<ParakeyMapping />}
+          />
+          <Route
+            path="/aptus"
+            element={<AptusOverview />}
           />
           <Route
             path="/messages"
