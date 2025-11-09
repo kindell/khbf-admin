@@ -12,9 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, UserCheck, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface AptusEvent {
   id: string;
@@ -25,6 +24,21 @@ interface AptusEvent {
   eventtype: 'DOOR' | 'REGISTRATION';
   status: 'DENIED_NO_ACCESS' | 'BLOCKED_USER' | 'DENIED_OUTSIDE_HOURS';
   accesscredential: string | null;
+}
+
+interface Member {
+  id: string;
+  first_name: string;
+  last_name: string;
+  aptus_user_id: string;
+  status: string;
+}
+
+interface RFIDIdentification {
+  rfid: string;
+  isIdentified: boolean;
+  userid: string | null;
+  member: Member | null;
 }
 
 interface Stats {
@@ -42,6 +56,7 @@ type SortDirection = 'asc' | 'desc';
 export default function AptusOverview() {
   const [events, setEvents] = useState<AptusEvent[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<AptusEvent[]>([]);
+  const [rfidIdentifications, setRfidIdentifications] = useState<Map<string, RFIDIdentification>>(new Map());
   const [stats, setStats] = useState<Stats>({
     deniedNoAccess: 0,
     uniqueRFIDs: 0,
@@ -117,7 +132,81 @@ export default function AptusOverview() {
 
     setEvents(data || []);
     calculateStats(data || []);
+
+    // Check if any denied RFID numbers have been identified later
+    await checkRFIDIdentifications(data || []);
+
     setLoading(false);
+  }
+
+  async function checkRFIDIdentifications(eventsData: AptusEvent[]) {
+    // Get all unique RFID numbers from DENIED_NO_ACCESS events
+    const deniedRFIDs = new Set(
+      eventsData
+        .filter(e => e.status === 'DENIED_NO_ACCESS' && e.accesscredential)
+        .map(e => e.accesscredential!)
+    );
+
+    if (deniedRFIDs.size === 0) {
+      return;
+    }
+
+    // Check if any of these RFIDs appear in events with a member_id
+    const { data: identifiedEvents, error: eventsError } = await supabase
+      .from('events')
+      .select('accesscredential, userid, member_id')
+      .in('accesscredential', Array.from(deniedRFIDs))
+      .not('member_id', 'is', null)
+      .order('eventtime', { ascending: false });
+
+    if (eventsError) {
+      console.error('Failed to check RFID identifications:', eventsError);
+      return;
+    }
+
+    // Get unique member_id values
+    const memberIds = new Set(
+      (identifiedEvents || [])
+        .map(e => e.member_id)
+        .filter(id => id)
+    );
+
+    // Fetch member information for these member_ids
+    const { data: members, error: membersError } = await supabase
+      .from('members')
+      .select('id, first_name, last_name, aptus_user_id, status')
+      .in('id', Array.from(memberIds));
+
+    if (membersError) {
+      console.error('Failed to fetch members:', membersError);
+    }
+
+    // Create a map of member_id -> member
+    const membersByMemberId = new Map<string, Member>();
+    (members || []).forEach(member => {
+      membersByMemberId.set(member.id, member);
+    });
+
+    // Build RFID identification map
+    const identMap = new Map<string, RFIDIdentification>();
+
+    (identifiedEvents || []).forEach(event => {
+      if (!event.accesscredential || !event.member_id) {
+        return;
+      }
+
+      // Only add if not already added (we want the latest one)
+      if (!identMap.has(event.accesscredential)) {
+        identMap.set(event.accesscredential, {
+          rfid: event.accesscredential,
+          isIdentified: true,
+          userid: event.userid || null,
+          member: membersByMemberId.get(event.member_id) || null,
+        });
+      }
+    });
+
+    setRfidIdentifications(identMap);
   }
 
   function calculateStats(eventsData: AptusEvent[]) {
@@ -182,19 +271,6 @@ export default function AptusOverview() {
       minute: '2-digit',
       second: '2-digit',
     });
-  }
-
-  function getStatusBadge(status: string) {
-    switch (status) {
-      case 'DENIED_NO_ACCESS':
-        return <Badge variant="destructive">Nekad åtkomst</Badge>;
-      case 'BLOCKED_USER':
-        return <Badge variant="destructive">Blockerad</Badge>;
-      case 'DENIED_OUTSIDE_HOURS':
-        return <Badge variant="secondary">Utanför öppettider</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
   }
 
   function getDepartmentBadge(department: string) {
@@ -521,6 +597,7 @@ export default function AptusOverview() {
                     {activeTab === 'unidentified' ? (
                       <>
                         <SortableHeader field="rfid">RFID-nummer</SortableHeader>
+                        <TableHead>Status</TableHead>
                         <SortableHeader field="count">Antal försök</SortableHeader>
                         <SortableHeader field="firstAttempt">Första försök</SortableHeader>
                         <SortableHeader field="lastAttempt">Senaste försök</SortableHeader>
@@ -541,26 +618,54 @@ export default function AptusOverview() {
                 </TableHeader>
                 <TableBody>
                   {activeTab === 'unidentified' ? (
-                    getGroupedRFIDData().map((item) => (
-                      <TableRow key={item.rfid}>
-                        <TableCell className="font-mono font-medium">
-                          {item.rfid}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="destructive">
-                            {item.count}x
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {formatTimestamp(item.firstAttempt)}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {formatTimestamp(item.lastAttempt)}
-                        </TableCell>
-                        <TableCell>{getDepartmentBadge(item.department)}</TableCell>
-                        <TableCell>{getEventTypeBadge(item.eventtype)}</TableCell>
-                      </TableRow>
-                    ))
+                    getGroupedRFIDData().map((item) => {
+                      const identification = rfidIdentifications.get(item.rfid);
+                      return (
+                        <TableRow key={item.rfid}>
+                          <TableCell className="font-mono font-medium">
+                            {item.rfid}
+                          </TableCell>
+                          <TableCell>
+                            {identification?.isIdentified ? (
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                  <UserCheck className="h-3 w-3 mr-1" />
+                                  Identifierad
+                                </Badge>
+                                {identification.member ? (
+                                  <Link
+                                    to={`/members/${identification.member.id}`}
+                                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                  >
+                                    {identification.member.first_name} {identification.member.last_name}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </Link>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    (User ID: {identification.userid})
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <Badge variant="secondary">Oidentifierad</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="destructive">
+                              {item.count}x
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {formatTimestamp(item.firstAttempt)}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {formatTimestamp(item.lastAttempt)}
+                          </TableCell>
+                          <TableCell>{getDepartmentBadge(item.department)}</TableCell>
+                          <TableCell>{getEventTypeBadge(item.eventtype)}</TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     getSortedBlockedEvents().map((event) => (
                       <TableRow key={event.id}>
