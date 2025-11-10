@@ -62,30 +62,8 @@ interface Suggestion {
 }
 
 type TimeFilterType = '7' | '30' | '90';
-type SortField = 'eventtime' | 'username' | 'userid' | 'department' | 'eventtype' | 'accesscredential' | 'status' | 'member';
+type SortField = 'eventtime' | 'username' | 'userid' | 'department' | 'eventtype' | 'accesscredential' | 'status';
 type SortDirection = 'asc' | 'desc';
-
-// Member Avatar Component
-function MemberAvatar({ member, size = 'sm' }: { member: Member; size?: 'sm' | 'md' }) {
-  const initials = `${member.first_name[0]}${member.last_name[0]}`.toUpperCase();
-  const sizeClasses = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
-
-  // Generate consistent color based on member ID
-  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-indigo-500'];
-  const colorIndex = member.id.charCodeAt(0) % colors.length;
-  const colorClass = colors[colorIndex];
-
-  return (
-    <Link to={`/medlem/${member.id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-      <div className={`${sizeClasses} ${colorClass} rounded-full flex items-center justify-center text-white font-medium shrink-0`}>
-        {initials}
-      </div>
-      <span className="text-sm text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap">
-        {member.first_name} {member.last_name}
-      </span>
-    </Link>
-  );
-}
 
 export default function AptusOverview() {
   const [events, setEvents] = useState<AptusEvent[]>([]);
@@ -579,14 +557,6 @@ export default function AptusOverview() {
         case 'status':
           comparison = a.status.localeCompare(b.status);
           break;
-        case 'member':
-          const memberA = a.accesscredential ? rfidIdentifications.get(a.accesscredential)?.member : null;
-          const memberB = b.accesscredential ? rfidIdentifications.get(b.accesscredential)?.member : null;
-          if (!memberA && !memberB) comparison = 0;
-          else if (!memberA) comparison = 1;
-          else if (!memberB) comparison = -1;
-          else comparison = `${memberA.first_name} ${memberA.last_name}`.localeCompare(`${memberB.first_name} ${memberB.last_name}`);
-          break;
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;
@@ -766,11 +736,10 @@ export default function AptusOverview() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <SortableHeader field="status">Status</SortableHeader>
-                    <SortableHeader field="member">Medlem</SortableHeader>
                     <SortableHeader field="eventtime">Tidpunkt</SortableHeader>
-                    <SortableHeader field="accesscredential">RFID</SortableHeader>
+                    <SortableHeader field="status">Status</SortableHeader>
                     <SortableHeader field="username">Användarnamn</SortableHeader>
+                    <SortableHeader field="accesscredential">RFID</SortableHeader>
                     <SortableHeader field="userid">User ID</SortableHeader>
                     <SortableHeader field="department">Avdelning</SortableHeader>
                     <SortableHeader field="eventtype">Typ</SortableHeader>
@@ -784,21 +753,26 @@ export default function AptusOverview() {
 
                     return (
                       <TableRow key={event.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {getStatusBadge(event.status)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {member ? (
-                            <MemberAvatar member={member} />
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
                         <TableCell className="font-mono text-sm whitespace-nowrap">
                           <div className="flex flex-col">
                             <span>{date}</span>
                             <span className="text-muted-foreground">{time}</span>
                           </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {getStatusBadge(event.status)}
+                        </TableCell>
+                        <TableCell>
+                          {member ? (
+                            <Link
+                              to={`/medlem/${member.id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {event.username || 'Okänd'}
+                            </Link>
+                          ) : (
+                            <span>{event.username || 'Okänd'}</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {event.accesscredential ? (
@@ -816,7 +790,6 @@ export default function AptusOverview() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>{event.username || 'Okänd'}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {event.userid && event.userid !== 'null' ? event.userid : '-'}
                         </TableCell>
