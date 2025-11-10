@@ -68,10 +68,10 @@ export function MemberRow({ member, onClick, queuePosition, displayCategory }: M
           {/* Access icons */}
           <div className="flex items-center gap-1.5">
             {member.parakey_user_id && (
-              <Smartphone className="h-3.5 w-3.5" title="Parakey" />
+              <Smartphone className="h-3.5 w-3.5"  />
             )}
             {member.aptus_user_id && (
-              <CreditCard className="h-3.5 w-3.5" title="RFID" />
+              <CreditCard className="h-3.5 w-3.5"  />
             )}
           </div>
 

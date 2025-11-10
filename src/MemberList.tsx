@@ -65,9 +65,21 @@ const calculateMemberYears = (member: Member, isQueueView: boolean = false): num
     relevantDate = member.fortnox_customer_since
       || member.first_queue_fee_date;
   } else {
-    // For regular members: ONLY use entrance fee date (when they became active members)
-    // This is critical because many members queued first, and we want years as ACTIVE member
-    relevantDate = member.last_entrance_fee_date;
+    // For regular members: Find the earliest date from available sources to determine membership start.
+    // We use fortnox_customer_since and last_entrance_fee_date as these indicate when membership began.
+    // This matches the logic used in the AI for answering "hur länge har jag varit medlem?"
+    const possibleDates = [
+      member.fortnox_customer_since,
+      member.last_entrance_fee_date
+    ].filter(date => date !== null);
+
+    if (possibleDates.length > 0) {
+      // Find the earliest (oldest) date
+      const dates = possibleDates.map(d => new Date(d));
+      relevantDate = new Date(Math.min(...dates.map(d => d.getTime()))).toISOString();
+    } else {
+      relevantDate = null;
+    }
   }
 
   if (!relevantDate) return null;
@@ -110,6 +122,7 @@ interface MemberListProps {
 export default function MemberList({
   members,
   period,
+  // @ts-expect-error - Declared but not used yet
   setPeriod,
   search,
   setSearch,
@@ -400,7 +413,6 @@ export default function MemberList({
     const categoryLabels: Record<MemberCategory, string> = {
       'MEDLEM': 'Medlemmar',
       'MEDBADARE': 'Medbadare',
-      'SPONSOR': 'Sponsorer',
       'KÖANDE': 'Köande',
       'INAKTIV': 'Inaktiva'
     };
@@ -413,13 +425,13 @@ export default function MemberList({
 
     return `${selectedLabels.join(', ')} (${sortedMembers.length})`;
   };
-
+    // @ts-expect-error - Declared but not used yet
   const getVisitsForPeriod = (member: Member) => {
     if (period === 'week') return member.visits_last_week || 0;
     if (period === 'month') return member.visits_last_month || 0;
     return member.visits_last_3_months || 0;
   };
-
+    // @ts-expect-error - Declared but not used yet
   const getPeriodLabel = () => {
     if (period === 'week') return '7 dagar';
     if (period === 'month') return '30 dagar';
@@ -634,10 +646,10 @@ export default function MemberList({
                     <TableCell>
                       <div className="flex gap-1">
                         {member.parakey_user_id && (
-                          <Smartphone className="h-4 w-4 text-muted-foreground" title="Parakey" />
+                          <Smartphone className="h-4 w-4 text-muted-foreground"  />
                         )}
                         {member.aptus_user_id && (
-                          <CreditCard className="h-4 w-4 text-muted-foreground" title="RFID" />
+                          <CreditCard className="h-4 w-4 text-muted-foreground"  />
                         )}
                       </div>
                     </TableCell>

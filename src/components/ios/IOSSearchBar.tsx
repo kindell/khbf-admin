@@ -1,5 +1,5 @@
 import { Search, X } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 interface IOSSearchBarProps {
   value: string;

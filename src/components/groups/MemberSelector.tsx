@@ -211,7 +211,7 @@ export function MemberSelector({ selectedMembers, onMembersChange }: MemberSelec
               {searchResults.map((member, index) => (
                 <div
                   key={member.member_id}
-                  ref={el => resultRefs.current[index] = el}
+                  ref={el => { resultRefs.current[index] = el; }}
                   onClick={() => handleAddMember(member)}
                   className={`
                     flex items-center gap-3 px-4 py-3

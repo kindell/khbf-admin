@@ -82,6 +82,7 @@ export default function EditGroup() {
       };
 
       // Save temporary rules to get count
+    // @ts-expect-error - Declared but not used yet
       const { data: groupData, error: updateError } = await supabase
         .from('sms_groups')
         .update({ rules: testRules })

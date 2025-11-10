@@ -270,6 +270,7 @@ export function NewMessage() {
 
   // Legacy function - currently unused but kept for potential future use
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // @ts-expect-error - Declared but not used yet
   async function sendToGroupBubble(messageText: string, groupBubble: SelectedGroupBubble) {
     try {
       console.log('📤 Sending to group bubble:', groupBubble);
@@ -986,7 +987,7 @@ export function NewMessage() {
             {searchResults.map((member, index) => (
               <div
                 key={member.id}
-                ref={el => resultRefs.current[index] = el}
+                ref={el => { resultRefs.current[index] = el; }}
                 className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
                   index === selectedIndex
                     ? 'bg-blue-50'

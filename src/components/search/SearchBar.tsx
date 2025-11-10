@@ -9,7 +9,7 @@ interface SearchBarProps {
 export function SearchBar({ onSearch, onClear, placeholder = 'Search' }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeoutRef = useRef<number | null>(null);
 
   // Debounced search - 150ms delay
   useEffect(() => {

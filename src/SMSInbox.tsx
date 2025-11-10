@@ -35,6 +35,7 @@ type InboxItem =
 interface SMSInboxProps {
   adminMemberId?: string;
   adminMemberName?: string;
+  onLogout?: () => void;
 }
 
 export function SMSInbox(_props: SMSInboxProps) {

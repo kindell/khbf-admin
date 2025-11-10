@@ -1,4 +1,4 @@
-import { useState, useRef, KeyboardEvent } from 'react';
+import { useState, useRef, type KeyboardEvent } from 'react';
 import './SMSLogin.css';
 
 interface SMSLoginProps {
@@ -191,7 +191,7 @@ export function SMSLogin({ onLoginSuccess }: SMSLoginProps) {
               {code.map((digit, index) => (
                 <input
                   key={index}
-                  ref={el => codeInputRefs.current[index] = el}
+                  ref={el => { codeInputRefs.current[index] = el; }}
                   type="text"
                   inputMode="numeric"
                   maxLength={1}

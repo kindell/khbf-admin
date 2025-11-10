@@ -485,10 +485,10 @@ export default function MemberDetail() {
           <h1 className="text-3xl font-bold">{member.full_name}</h1>
           {/* Quick Win 3: Access status icons in header */}
           {member.parakey_user_id && (
-            <Smartphone className="h-5 w-5 text-blue-500" title="Parakey aktiv" />
+            <Smartphone className="h-5 w-5 text-blue-500"  />
           )}
           {member.aptus_user_id && (
-            <CreditCard className="h-5 w-5 text-green-500" title="RFID aktiv" />
+            <CreditCard className="h-5 w-5 text-green-500"  />
           )}
         </div>
         <p className="text-muted-foreground">

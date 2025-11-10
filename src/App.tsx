@@ -23,6 +23,7 @@ const EditGroup = lazy(() => import('./pages/EditGroup'));
 const GroupDetailView = lazy(() => import('./components/groups/GroupDetailView').then(module => ({ default: module.GroupDetailView })));
 const TemplatesOverview = lazy(() => import('./pages/TemplatesOverview'));
 const SMSLogs = lazy(() => import('./pages/SMSLogs'));
+const AIChat = lazy(() => import('./pages/AIChat'));
 
 export type Period = 'week' | 'month' | '3months';
 
@@ -79,7 +80,7 @@ function App() {
         fetchMembers();
 
         // Auto-refresh every 30 seconds only on home page
-        let intervalId: NodeJS.Timeout | null = null;
+        let intervalId: number | null = null;
         if (isHomePage) {
           intervalId = setInterval(() => {
             fetchMembers(false); // Don't show loading spinner for auto-refresh
@@ -143,9 +144,6 @@ function App() {
 
   // Helper: Fetch all visits with pagination
   async function fetchAllVisits(thirtyDaysAgo: Date) {
-    const recentVisits: any[] = [];
-    const allVisits: any[] = [];
-
     // Collect all member user IDs first for targeted query
     const { data: membersData } = await supabase
       .from('members')
@@ -489,6 +487,10 @@ function App() {
           <Route
             path="/messages/:threadId"
             element={<SMSThread />}
+          />
+          <Route
+            path="/ai-chat"
+            element={<AIChat />}
           />
           </Routes>
         </Suspense>
