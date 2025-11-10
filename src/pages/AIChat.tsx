@@ -117,10 +117,10 @@ export default function AIChat() {
     // Try to find existing thread
     const { data: existingThread } = await supabase
       .from('admin_chat_threads')
-      .select('*')
+      .select('id, admin_user_id, impersonating_member_id, created_at, updated_at')
       .eq('admin_user_id', session.email)
       .eq('impersonating_member_id', memberId)
-      .single();
+      .maybeSingle();
 
     if (existingThread) {
       setCurrentThread(existingThread);
