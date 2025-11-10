@@ -51,10 +51,12 @@ export default function AIChat() {
     }
   }, []);
 
-  // Load members
+  // Load members - wait for session to be available
   useEffect(() => {
-    loadMembers();
-  }, []);
+    if (session) {
+      loadMembers();
+    }
+  }, [session]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -237,7 +239,6 @@ export default function AIChat() {
                 {members.map(member => (
                   <option key={member.id} value={member.id}>
                     {member.first_name} {member.last_name}
-                    {member.phone && ` (${member.phone})`}
                   </option>
                 ))}
               </Select>
@@ -332,8 +333,15 @@ export default function AIChat() {
                   <Input
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !loading && inputMessage.trim()) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
                     placeholder={`Skriv som ${selectedMember.first_name}...`}
                     disabled={loading}
+                    autoFocus
                   />
                   <Button type="submit" disabled={loading || !inputMessage.trim()}>
                     <Send className="w-4 h-4" />
