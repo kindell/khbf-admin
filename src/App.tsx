@@ -71,18 +71,18 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Only fetch members when on home page or member detail page
-    const isHomePage = location.pathname === '/';
+    // Only fetch members when on members list page or member detail page
+    const isMembersPage = location.pathname === '/members';
     const isMemberDetailPage = location.pathname.startsWith('/members/');
-    const needsMemberData = isHomePage || isMemberDetailPage;
+    const needsMemberData = isMembersPage || isMemberDetailPage;
 
     if (session) {
       if (needsMemberData) {
         fetchMembers();
 
-        // Auto-refresh every 30 seconds only on home page
+        // Auto-refresh every 30 seconds only on members list page
         let intervalId: number | null = null;
-        if (isHomePage) {
+        if (isMembersPage) {
           intervalId = setInterval(() => {
             fetchMembers(false); // Don't show loading spinner for auto-refresh
           }, 30000);
