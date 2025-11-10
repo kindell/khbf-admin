@@ -52,6 +52,22 @@ export function SMSThread() {
   // Group messages using Apple Messages style grouping
   const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
 
+  // Update page title when thread info loads
+  useEffect(() => {
+    if (threadInfo?.member_name) {
+      document.title = `Meddelande till ${threadInfo.member_name} | KHbf Admin`;
+    } else if (threadInfo?.phone_number) {
+      document.title = `Meddelande till ${threadInfo.phone_number} | KHbf Admin`;
+    } else {
+      document.title = 'Meddelande | KHbf Admin';
+    }
+
+    // Cleanup: reset title when component unmounts
+    return () => {
+      document.title = 'KHbf Admin';
+    };
+  }, [threadInfo]);
+
   useEffect(() => {
     if (!threadId) return;
 

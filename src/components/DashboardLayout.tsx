@@ -11,7 +11,7 @@ interface DashboardLayoutProps {
   title?: string;
 }
 
-export function DashboardLayout({ children, userName, onLogout, title = 'KHBF Admin' }: DashboardLayoutProps) {
+export function DashboardLayout({ children, userName, onLogout, title = 'KHbf Admin' }: DashboardLayoutProps) {
   const location = useLocation();
   const { sidebarOpen, openSidebar, closeSidebar } = useSidebar();
 
@@ -46,7 +46,7 @@ export function DashboardLayout({ children, userName, onLogout, title = 'KHBF Ad
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-primary">KHBF Admin</h1>
+          <h1 className="text-2xl font-bold text-primary">KHbf Admin</h1>
           <p className="text-sm text-muted-foreground">Medlemshantering</p>
         </div>
 

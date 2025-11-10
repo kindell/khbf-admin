@@ -109,6 +109,20 @@ export default function MemberDetail() {
     }
   };
 
+  // Update page title when member data loads
+  useEffect(() => {
+    if (member) {
+      document.title = `${member.first_name} ${member.last_name} | KHbf Admin`;
+    } else {
+      document.title = 'Medlem | KHbf Admin';
+    }
+
+    // Cleanup: reset title when component unmounts
+    return () => {
+      document.title = 'KHbf Admin';
+    };
+  }, [member]);
+
   useEffect(() => {
     if (id) {
       loadAllData();

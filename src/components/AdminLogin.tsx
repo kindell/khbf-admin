@@ -248,7 +248,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
     <div className="sms-login-container">
       <div className="sms-login-card">
         <div className="sms-login-header">
-          <h1>🔐 KHBF Admin</h1>
+          <h1>🔐 KHbf Admin</h1>
           <p>Logga in med ditt telefonnummer</p>
         </div>
 

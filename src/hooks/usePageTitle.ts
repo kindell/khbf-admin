@@ -32,5 +32,5 @@ export function usePageTitle(): string {
     return '';
   }
 
-  return 'KHBF Admin';
+  return 'KHbf Admin';
 }

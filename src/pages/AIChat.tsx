@@ -105,6 +105,20 @@ export default function AIChat() {
     }
   }, [messages]);
 
+  // Update page title based on selected member
+  useEffect(() => {
+    if (selectedMember) {
+      document.title = `AI Chat - ${selectedMember.first_name} ${selectedMember.last_name} | KHbf Admin`;
+    } else {
+      document.title = 'AI Chat | KHbf Admin';
+    }
+
+    // Cleanup: reset title when component unmounts
+    return () => {
+      document.title = 'KHbf Admin';
+    };
+  }, [selectedMember]);
+
   // Load thread when selected member changes (from URL)
   useEffect(() => {
     if (selectedMemberId && session) {
