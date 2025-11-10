@@ -71,6 +71,27 @@ export default function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Log new AI messages with metadata to console
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.direction === 'outbound' && lastMessage.is_ai) {
+      if (lastMessage.function_calls || lastMessage.context_used) {
+        console.group(`🤖 AI Response: "${lastMessage.message.substring(0, 50)}..."`);
+
+        if (lastMessage.function_calls) {
+          console.log('📞 Function Calls:', lastMessage.function_calls);
+        }
+
+        if (lastMessage.context_used) {
+          console.log('📊 Context Used:', lastMessage.context_used);
+        }
+
+        console.log('💬 Full Message:', lastMessage.message);
+        console.groupEnd();
+      }
+    }
+  }, [messages]);
+
   // Subscribe to realtime updates
   useEffect(() => {
     if (!currentThread) return;
@@ -312,17 +333,6 @@ export default function AIChat() {
                           })}
                         </p>
 
-                        {/* Debug info - show function calls if available */}
-                        {msg.function_calls && (
-                          <details className="mt-2 text-xs">
-                            <summary className="cursor-pointer text-muted-foreground">
-                              Debug: Function Calls
-                            </summary>
-                            <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto">
-                              {JSON.stringify(msg.function_calls, null, 2)}
-                            </pre>
-                          </details>
-                        )}
                       </div>
                     </div>
                   ))
