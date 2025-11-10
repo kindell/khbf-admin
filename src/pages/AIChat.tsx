@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -33,14 +34,17 @@ interface ChatThread {
 }
 
 export default function AIChat() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [session, setSession] = useState<{ memberId: string; email: string } | null>(null);
   const [members, setMembers] = useState<ChatMember[]>([]);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Get selected member ID from URL
+  const selectedMemberId = searchParams.get('member') || '';
 
   // Get current user session
   useEffect(() => {
@@ -92,6 +96,13 @@ export default function AIChat() {
     }
   }, [messages]);
 
+  // Load thread when selected member changes (from URL)
+  useEffect(() => {
+    if (selectedMemberId && session) {
+      loadOrCreateThread(selectedMemberId);
+    }
+  }, [selectedMemberId, session]);
+
   // Subscribe to realtime updates
   useEffect(() => {
     if (!currentThread) return;
@@ -128,12 +139,11 @@ export default function AIChat() {
 
     setMembers(data || []);
 
-    // Auto-select current logged in user if available
-    if (session && data) {
+    // Auto-select current logged in user if no member selected in URL
+    if (session && data && !selectedMemberId) {
       const currentMember = data.find((m: any) => m.id === session.memberId);
       if (currentMember) {
-        setSelectedMemberId(currentMember.id);
-        loadOrCreateThread(currentMember.id);
+        setSearchParams({ member: currentMember.id });
       }
     }
   }
@@ -242,8 +252,12 @@ export default function AIChat() {
   }
 
   function handleMemberChange(memberId: string) {
-    setSelectedMemberId(memberId);
-    loadOrCreateThread(memberId);
+    // Update URL with selected member
+    if (memberId) {
+      setSearchParams({ member: memberId });
+    } else {
+      setSearchParams({});
+    }
   }
 
   const selectedMember = members.find(m => m.id === selectedMemberId);
