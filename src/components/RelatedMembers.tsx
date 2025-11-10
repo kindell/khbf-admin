@@ -120,7 +120,7 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
                   )}
                 </div>
               }
-              onClick={() => navigate(`/medlem/${primaryMember.id}`, { state: { animationDirection: 'forward' } })}
+              onClick={() => navigate(`/members/${primaryMember.id}`, { state: { animationDirection: 'forward' } })}
             />
           )}
 
@@ -146,7 +146,7 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
                   )}
                 </div>
               }
-              onClick={() => navigate(`/medlem/${mb.id}`, { state: { animationDirection: 'forward' } })}
+              onClick={() => navigate(`/members/${mb.id}`, { state: { animationDirection: 'forward' } })}
             />
           ))}
         </InfoSection>
@@ -168,7 +168,7 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
                 Medbadare till:
               </p>
               <div
-                onClick={() => navigate(`/medlem/${primaryMember.id}`, { state: { animationDirection: 'forward' } })}
+                onClick={() => navigate(`/members/${primaryMember.id}`, { state: { animationDirection: 'forward' } })}
                 className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer transition-colors"
               >
                 <div className="flex-1">
@@ -209,7 +209,7 @@ export function RelatedMembers({ memberId }: RelatedMembersProps) {
                 {medbadare.map((mb) => (
                   <div
                     key={mb.id}
-                    onClick={() => navigate(`/medlem/${mb.id}`, { state: { animationDirection: 'forward' } })}
+                    onClick={() => navigate(`/members/${mb.id}`, { state: { animationDirection: 'forward' } })}
                     className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer transition-colors"
                   >
                     <div className="flex-1">

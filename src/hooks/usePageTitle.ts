@@ -10,7 +10,7 @@ export function usePageTitle(): string {
     return 'Medlemmar';
   }
 
-  if (location.pathname.startsWith('/medlem/')) {
+  if (location.pathname.startsWith('/members/')) {
     // Don't show title for member detail pages - they have their own iOS headers
     return '';
   }

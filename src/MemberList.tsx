@@ -451,7 +451,7 @@ export default function MemberList({
   };
 
   const handleMemberClick = (member: Member) => {
-    navigate(`/medlem/${member.id}`, { state: { animationDirection: 'forward' } });
+    navigate(`/members/${member.id}`, { state: { animationDirection: 'forward' } });
   };
 
   const handleSort = (field: SortField) => {

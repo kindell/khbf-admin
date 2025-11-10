@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { supabase, type Member } from './lib/supabase';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AdminLogin } from './components/AdminLogin';
@@ -11,6 +11,7 @@ import { SidebarProvider } from './contexts/SidebarContext';
 // Lazy load heavy components
 const MemberList = lazy(() => import('./MemberList'));
 const MemberDetail = lazy(() => import('./MemberDetail'));
+const MemberRedirect = lazy(() => import('./components/MemberRedirect').then(m => ({ default: m.MemberRedirect })));
 const ParakeyMapping = lazy(() => import('./ParakeyMapping'));
 const AptusOverview = lazy(() => import('./pages/AptusOverview'));
 const SMSInbox = lazy(() => import('./SMSInbox').then(module => ({ default: module.SMSInbox })));
@@ -72,7 +73,7 @@ function App() {
   useEffect(() => {
     // Only fetch members when on home page or member detail page
     const isHomePage = location.pathname === '/';
-    const isMemberDetailPage = location.pathname.startsWith('/medlem/');
+    const isMemberDetailPage = location.pathname.startsWith('/members/');
     const needsMemberData = isHomePage || isMemberDetailPage;
 
     if (session) {
@@ -394,8 +395,9 @@ function App() {
           </div>
         }>
           <Routes>
+          <Route path="/" element={<Navigate to="/ai-chat" replace />} />
           <Route
-            path="/"
+            path="/members"
             element={
               <>
                 {/* Stats Cards - horizontal scroll on mobile, grid on desktop */}
@@ -437,8 +439,13 @@ function App() {
             }
           />
           <Route
-            path="/medlem/:id"
+            path="/members/:id"
             element={<MemberDetail />}
+          />
+          {/* Redirect old /medlem/:id URLs to /members/:id for backwards compatibility */}
+          <Route
+            path="/medlem/:id"
+            element={<MemberRedirect />}
           />
           <Route
             path="/parakey-mapping"

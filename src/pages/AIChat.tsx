@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { Select } from '../components/ui/select';
 import { Send, Trash2, Bot, User as UserIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -41,10 +40,20 @@ export default function AIChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [memberMessageCounts, setMemberMessageCounts] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Get selected member ID from URL
   const selectedMemberId = searchParams.get('member') || '';
+
+  // Filter members based on search
+  const filteredMembers = members.filter(m =>
+    `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
+  );
 
   // Get current user session
   useEffect(() => {
@@ -139,6 +148,11 @@ export default function AIChat() {
 
     setMembers(data || []);
 
+    // Load message counts for all members
+    if (session && data) {
+      await loadMessageCounts();
+    }
+
     // Auto-select current logged in user if no member selected in URL
     if (session && data && !selectedMemberId) {
       const currentMember = data.find((m: any) => m.id === session.memberId);
@@ -146,6 +160,34 @@ export default function AIChat() {
         setSearchParams({ member: currentMember.id });
       }
     }
+  }
+
+  async function loadMessageCounts() {
+    if (!session) return;
+
+    // Instead of querying all at once (URL too long), just get all threads for this admin
+    // without filtering by member IDs
+    const { data: threads } = await supabase
+      .from('admin_chat_threads')
+      .select('id, impersonating_member_id')
+      .eq('admin_user_id', session.email);
+
+    if (!threads) return;
+
+    // Get message counts for each thread
+    const counts: Record<string, number> = {};
+    for (const thread of threads) {
+      const { count } = await supabase
+        .from('admin_chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('thread_id', thread.id);
+
+      if (count) {
+        counts[thread.impersonating_member_id] = count;
+      }
+    }
+
+    setMemberMessageCounts(counts);
   }
 
   async function loadOrCreateThread(memberId: string) {
@@ -272,20 +314,98 @@ export default function AIChat() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Member Selector */}
-          <div className="mb-4 flex items-center gap-4">
-            <div className="flex-1">
+          {/* Member Selector with Autosuggest */}
+          <div className="mb-4 flex items-end gap-4">
+            <div className="flex-1 relative">
               <label className="text-sm text-muted-foreground mb-2 block">
                 Prata som:
               </label>
-              <Select value={selectedMemberId} onChange={(e) => handleMemberChange(e.target.value)}>
-                <option value="">Välj medlem...</option>
-                {members.map(member => (
-                  <option key={member.id} value={member.id}>
-                    {member.first_name} {member.last_name}
-                  </option>
-                ))}
-              </Select>
+              <Input
+                ref={searchInputRef}
+                type="text"
+                value={selectedMember ? `${selectedMember.first_name} ${selectedMember.last_name}` : memberSearch}
+                onChange={(e) => {
+                  // Clear selected member when user starts typing
+                  if (selectedMember) {
+                    setSearchParams({});
+                  }
+                  setMemberSearch(e.target.value);
+                  setShowSuggestions(true);
+                  setSelectedSuggestionIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (!showSuggestions || filteredMembers.length === 0) return;
+
+                  const visibleMembers = filteredMembers.slice(0, 10);
+
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedSuggestionIndex(prev =>
+                      prev < visibleMembers.length - 1 ? prev + 1 : prev
+                    );
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : 0);
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedMember = visibleMembers[selectedSuggestionIndex];
+                    if (selectedMember) {
+                      handleMemberChange(selectedMember.id);
+                      setMemberSearch('');
+                      setShowSuggestions(false);
+                      setSelectedSuggestionIndex(0);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setShowSuggestions(false);
+                  }
+                }}
+                onFocus={(e) => {
+                  setShowSuggestions(true);
+                  setSelectedSuggestionIndex(0);
+                  // Select all text when focusing on a selected member
+                  if (selectedMember) {
+                    e.target.select();
+                  }
+                }}
+                onBlur={() => {
+                  // Delay to allow click on suggestion
+                  setTimeout(() => setShowSuggestions(false), 200);
+                }}
+                placeholder="Sök medlem..."
+                autoComplete="off"
+              />
+
+              {/* Suggestions Dropdown */}
+              {showSuggestions && memberSearch && filteredMembers.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {filteredMembers.slice(0, 10).map((member, index) => {
+                    const messageCount = memberMessageCounts[member.id] || 0;
+                    return (
+                      <button
+                        key={member.id}
+                        onClick={() => {
+                          handleMemberChange(member.id);
+                          setMemberSearch('');
+                          setShowSuggestions(false);
+                          setSelectedSuggestionIndex(0);
+                        }}
+                        className={`w-full text-left px-3 py-2 transition-colors flex items-center justify-between ${
+                          index === selectedSuggestionIndex
+                            ? 'bg-accent'
+                            : 'hover:bg-accent'
+                        }`}
+                      >
+                        <span>{member.first_name} {member.last_name}</span>
+                        {messageCount > 0 && (
+                          <span className="text-sm text-muted-foreground">
+                            {messageCount} {messageCount === 1 ? 'meddelande' : 'meddelanden'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {messages.length > 0 && (

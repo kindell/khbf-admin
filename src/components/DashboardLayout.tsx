@@ -52,10 +52,28 @@ export function DashboardLayout({ children, userName, onLogout, title = 'KHBF Ad
 
         <nav className="space-y-1 px-3 flex-1">
           <Link
-            to="/"
+            to="/ai-chat"
+            onClick={(e) => {
+              // Don't navigate if already on AI Chat - preserve query params
+              if (location.pathname === '/ai-chat') {
+                e.preventDefault();
+              }
+              closeSidebar();
+            }}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isActive('/ai-chat')
+                ? 'bg-accent text-accent-foreground'
+                : 'hover:bg-accent hover:text-accent-foreground'
+            }`}
+          >
+            <Bot className="h-4 w-4" />
+            AI Chat
+          </Link>
+          <Link
+            to="/members"
             onClick={closeSidebar}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              isActive('/') && !isActive('/messages')
+              isActive('/members')
                 ? 'bg-accent text-accent-foreground'
                 : 'hover:bg-accent hover:text-accent-foreground'
             }`}
@@ -110,18 +128,6 @@ export function DashboardLayout({ children, userName, onLogout, title = 'KHBF Ad
           >
             <ScrollText className="h-4 w-4" />
             Loggar
-          </Link>
-          <Link
-            to="/ai-chat"
-            onClick={closeSidebar}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              isActive('/ai-chat')
-                ? 'bg-accent text-accent-foreground'
-                : 'hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            <Bot className="h-4 w-4" />
-            AI Chat
           </Link>
           <Link
             to="/parakey-mapping"

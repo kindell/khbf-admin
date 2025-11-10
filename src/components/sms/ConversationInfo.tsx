@@ -83,7 +83,7 @@ export function ConversationInfo({
 
   function goToMemberDetail() {
     if (memberId) {
-      navigate(`/medlem/${memberId}`);
+      navigate(`/members/${memberId}`);
     }
   }
 

@@ -794,7 +794,7 @@ export default function AptusOverview() {
                               <span>
                                 Okänd (Länkad till{' '}
                                 <Link
-                                  to={`/medlem/${member.id}`}
+                                  to={`/members/${member.id}`}
                                   className="text-blue-600 hover:text-blue-800 hover:underline"
                                 >
                                   {member.first_name} {member.last_name}
@@ -803,7 +803,7 @@ export default function AptusOverview() {
                               </span>
                             ) : (
                               <Link
-                                to={`/medlem/${member.id}`}
+                                to={`/members/${member.id}`}
                                 className="text-blue-600 hover:text-blue-800 hover:underline"
                               >
                                 {event.username}
