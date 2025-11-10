@@ -55,6 +55,9 @@ export default function AIChat() {
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(memberSearch.toLowerCase())
   );
 
+  // Get selected member from members list
+  const selectedMember = members.find(m => m.id === selectedMemberId);
+
   // Get current user session
   useEffect(() => {
     const savedSession = localStorage.getItem('khbf_admin_session');
@@ -315,8 +318,6 @@ export default function AIChat() {
       setSearchParams({});
     }
   }
-
-  const selectedMember = members.find(m => m.id === selectedMemberId);
 
   return (
     <div className="space-y-4">
