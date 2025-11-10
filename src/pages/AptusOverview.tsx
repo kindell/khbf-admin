@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, UserCheck, ExternalLink } from 'lucide-react';
+import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, UserCheck, ExternalLink, X, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AptusEvent {
@@ -48,9 +48,14 @@ interface Stats {
   outsideHours: number;
 }
 
-type TabType = 'unidentified' | 'blocked';
+interface Filter {
+  type: 'rfid' | 'department' | 'status' | 'eventtype';
+  value: string;
+  label: string;
+}
+
 type TimeFilterType = '7' | '30' | '90';
-type SortField = 'rfid' | 'count' | 'firstAttempt' | 'lastAttempt' | 'department' | 'eventtype' | 'eventtime' | 'username' | 'userid' | 'accesscredential';
+type SortField = 'eventtime' | 'username' | 'userid' | 'department' | 'eventtype' | 'accesscredential' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 export default function AptusOverview() {
@@ -65,12 +70,13 @@ export default function AptusOverview() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [sortField, setSortField] = useState<SortField>('count');
+  const [sortField, setSortField] = useState<SortField>('eventtime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [activeTab, setActiveTab] = useState<TabType>('unidentified');
-  const [departmentFilter, setDepartmentFilter] = useState<'ALL' | 'LADIES' | 'GENTS'>('ALL');
-  const [eventTypeFilter, setEventTypeFilter] = useState<'ALL' | 'DOOR' | 'REGISTRATION'>('ALL');
+  const [filters, setFilters] = useState<Filter[]>([]);
   const [timeFilter, setTimeFilter] = useState<TimeFilterType>('30');
+  const [showAddFilter, setShowAddFilter] = useState(false);
+  const [newFilterType, setNewFilterType] = useState<'rfid' | 'department' | 'status' | 'eventtype'>('rfid');
+  const [newFilterValue, setNewFilterValue] = useState('');
 
   useEffect(() => {
     loadEvents();
@@ -96,18 +102,7 @@ export default function AptusOverview() {
 
   useEffect(() => {
     filterEvents();
-  }, [events, search, activeTab, departmentFilter, eventTypeFilter]);
-
-  // Reset sort when changing tabs
-  useEffect(() => {
-    if (activeTab === 'unidentified') {
-      setSortField('count');
-      setSortDirection('desc');
-    } else {
-      setSortField('eventtime');
-      setSortDirection('desc');
-    }
-  }, [activeTab]);
+  }, [events, search, filters]);
 
   async function loadEvents() {
     setLoading(true);
@@ -230,22 +225,23 @@ export default function AptusOverview() {
   function filterEvents() {
     let filtered = [...events];
 
-    // Filter by tab (status)
-    if (activeTab === 'unidentified') {
-      filtered = filtered.filter(e => e.status === 'DENIED_NO_ACCESS');
-    } else if (activeTab === 'blocked') {
-      filtered = filtered.filter(e => e.status === 'BLOCKED_USER');
-    }
-
-    // Filter by department
-    if (departmentFilter !== 'ALL') {
-      filtered = filtered.filter(e => e.department === departmentFilter);
-    }
-
-    // Filter by event type
-    if (eventTypeFilter !== 'ALL') {
-      filtered = filtered.filter(e => e.eventtype === eventTypeFilter);
-    }
+    // Apply each filter
+    filters.forEach(filter => {
+      switch (filter.type) {
+        case 'rfid':
+          filtered = filtered.filter(e => e.accesscredential === filter.value);
+          break;
+        case 'department':
+          filtered = filtered.filter(e => e.department === filter.value);
+          break;
+        case 'status':
+          filtered = filtered.filter(e => e.status === filter.value);
+          break;
+        case 'eventtype':
+          filtered = filtered.filter(e => e.eventtype === filter.value);
+          break;
+      }
+    });
 
     // Search filter
     if (search) {
@@ -258,6 +254,55 @@ export default function AptusOverview() {
     }
 
     setFilteredEvents(filtered);
+  }
+
+  function addFilter(type: Filter['type'], value: string, label: string) {
+    // Don't add duplicate filters
+    const exists = filters.some(f => f.type === type && f.value === value);
+    if (!exists) {
+      setFilters([...filters, { type, value, label }]);
+    }
+  }
+
+  function removeFilter(index: number) {
+    setFilters(filters.filter((_, i) => i !== index));
+  }
+
+  function handleAddCustomFilter() {
+    if (!newFilterValue) return;
+
+    let label = '';
+    switch (newFilterType) {
+      case 'rfid':
+        label = `RFID: ${newFilterValue}`;
+        break;
+      case 'department':
+        label = `Avdelning: ${newFilterValue === 'LADIES' ? 'Damer' : 'Herrar'}`;
+        break;
+      case 'status':
+        label = `Status: ${getStatusLabel(newFilterValue)}`;
+        break;
+      case 'eventtype':
+        label = `Typ: ${newFilterValue === 'DOOR' ? 'Dörr' : 'Registrering'}`;
+        break;
+    }
+
+    addFilter(newFilterType, newFilterValue, label);
+    setNewFilterValue('');
+    setShowAddFilter(false);
+  }
+
+  function getStatusLabel(status: string): string {
+    switch (status) {
+      case 'DENIED_NO_ACCESS':
+        return 'Nekad (ingen åtkomst)';
+      case 'BLOCKED_USER':
+        return 'Blockerad användare';
+      case 'DENIED_OUTSIDE_HOURS':
+        return 'Nekad (utanför öppettider)';
+      default:
+        return status;
+    }
   }
 
   function formatTimestamp(timestamp: string) {
@@ -273,10 +318,15 @@ export default function AptusOverview() {
     });
   }
 
-  function getDepartmentBadge(department: string) {
+  function getDepartmentBadge(department: string, onClick?: () => void) {
+    const label = department === 'LADIES' ? 'Damer' : 'Herrar';
     return (
-      <Badge variant={department === 'LADIES' ? 'default' : 'secondary'}>
-        {department === 'LADIES' ? 'Damer' : 'Herrar'}
+      <Badge
+        variant="secondary"
+        className={onClick ? "cursor-pointer hover:bg-secondary/80" : ""}
+        onClick={onClick}
+      >
+        {label}
       </Badge>
     );
   }
@@ -289,13 +339,24 @@ export default function AptusOverview() {
     );
   }
 
+  function getStatusBadge(status: string) {
+    let variant: 'default' | 'destructive' | 'outline' | 'secondary' = 'secondary';
+    if (status === 'BLOCKED_USER') variant = 'destructive';
+
+    return (
+      <Badge variant={variant}>
+        {getStatusLabel(status)}
+      </Badge>
+    );
+  }
+
   // Handle sort click
   function handleSort(field: SortField) {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDirection(field === 'count' ? 'desc' : 'asc');
+      setSortDirection(field === 'eventtime' ? 'desc' : 'asc');
     }
   }
 
@@ -323,79 +384,8 @@ export default function AptusOverview() {
     );
   }
 
-  // Group events by RFID for unidentified tab
-  function getGroupedRFIDData() {
-    const rfidMap = new Map<string, AptusEvent[]>();
-
-    filteredEvents.forEach(event => {
-      if (!event.accesscredential) return;
-
-      const existing = rfidMap.get(event.accesscredential) || [];
-      existing.push(event);
-      rfidMap.set(event.accesscredential, existing);
-    });
-
-    const grouped = Array.from(rfidMap.entries()).map(([rfid, events]) => {
-      // Sort by time to get first and last
-      const sorted = events.sort((a, b) =>
-        new Date(a.eventtime).getTime() - new Date(b.eventtime).getTime()
-      );
-
-      // Get most common department and eventtype
-      const deptCounts = new Map<string, number>();
-      const typeCounts = new Map<string, number>();
-
-      events.forEach(e => {
-        deptCounts.set(e.department, (deptCounts.get(e.department) || 0) + 1);
-        typeCounts.set(e.eventtype, (typeCounts.get(e.eventtype) || 0) + 1);
-      });
-
-      const mostCommonDept = Array.from(deptCounts.entries())
-        .sort((a, b) => b[1] - a[1])[0][0];
-      const mostCommonType = Array.from(typeCounts.entries())
-        .sort((a, b) => b[1] - a[1])[0][0];
-
-      return {
-        rfid,
-        count: events.length,
-        firstAttempt: sorted[0].eventtime,
-        lastAttempt: sorted[sorted.length - 1].eventtime,
-        department: mostCommonDept as 'LADIES' | 'GENTS',
-        eventtype: mostCommonType as 'DOOR' | 'REGISTRATION',
-      };
-    });
-
-    // Apply sorting
-    return grouped.sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortField) {
-        case 'rfid':
-          comparison = a.rfid.localeCompare(b.rfid);
-          break;
-        case 'count':
-          comparison = a.count - b.count;
-          break;
-        case 'firstAttempt':
-          comparison = new Date(a.firstAttempt).getTime() - new Date(b.firstAttempt).getTime();
-          break;
-        case 'lastAttempt':
-          comparison = new Date(a.lastAttempt).getTime() - new Date(b.lastAttempt).getTime();
-          break;
-        case 'department':
-          comparison = a.department.localeCompare(b.department);
-          break;
-        case 'eventtype':
-          comparison = a.eventtype.localeCompare(b.eventtype);
-          break;
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  }
-
-  // Get sorted blocked events
-  function getSortedBlockedEvents() {
+  // Get sorted events
+  function getSortedEvents() {
     return [...filteredEvents].sort((a, b) => {
       let comparison = 0;
 
@@ -417,6 +407,9 @@ export default function AptusOverview() {
           break;
         case 'accesscredential':
           comparison = (a.accesscredential || '').localeCompare(b.accesscredential || '');
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
           break;
       }
 
@@ -514,62 +507,136 @@ export default function AptusOverview() {
         </Card>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b">
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'unidentified'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-          onClick={() => setActiveTab('unidentified')}
-        >
-          Icke identifierade RFID ({stats.deniedNoAccess})
-        </button>
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'blocked'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-          onClick={() => setActiveTab('blocked')}
-        >
-          Blockerade användare ({stats.blockedUsers})
-        </button>
-      </div>
-
-      {/* Filters */}
+      {/* Advanced Search & Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="flex-1 relative">
+          <div className="space-y-4">
+            {/* Search input */}
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={activeTab === 'unidentified' ? 'Sök RFID-nummer...' : 'Sök namn, user ID eller RFID...'}
+                placeholder="Sök namn, user ID eller RFID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
               />
             </div>
-            <div className="flex gap-2">
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value as any)}
-                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="ALL">Alla avdelningar</option>
-                <option value="LADIES">Damer</option>
-                <option value="GENTS">Herrar</option>
-              </select>
-              <select
-                value={eventTypeFilter}
-                onChange={(e) => setEventTypeFilter(e.target.value as any)}
-                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="ALL">Alla typer</option>
-                <option value="DOOR">Dörr</option>
-                <option value="REGISTRATION">Registrering</option>
-              </select>
+
+            {/* Active filters */}
+            {filters.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {filters.map((filter, index) => (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="flex items-center gap-1 px-3 py-1"
+                  >
+                    <span>{filter.label}</span>
+                    <button
+                      onClick={() => removeFilter(index)}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Add filter section */}
+            <div>
+              {!showAddFilter ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddFilter(true)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Lägg till filter
+                </Button>
+              ) : (
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex gap-2">
+                      <select
+                        value={newFilterType}
+                        onChange={(e) => {
+                          setNewFilterType(e.target.value as any);
+                          setNewFilterValue('');
+                        }}
+                        className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="rfid">RFID-nummer</option>
+                        <option value="department">Avdelning</option>
+                        <option value="status">Status</option>
+                        <option value="eventtype">Händelsetyp</option>
+                      </select>
+
+                      {newFilterType === 'rfid' && (
+                        <Input
+                          placeholder="RFID-nummer..."
+                          value={newFilterValue}
+                          onChange={(e) => setNewFilterValue(e.target.value)}
+                        />
+                      )}
+
+                      {newFilterType === 'department' && (
+                        <select
+                          value={newFilterValue}
+                          onChange={(e) => setNewFilterValue(e.target.value)}
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm flex-1"
+                        >
+                          <option value="">Välj avdelning...</option>
+                          <option value="LADIES">Damer</option>
+                          <option value="GENTS">Herrar</option>
+                        </select>
+                      )}
+
+                      {newFilterType === 'status' && (
+                        <select
+                          value={newFilterValue}
+                          onChange={(e) => setNewFilterValue(e.target.value)}
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm flex-1"
+                        >
+                          <option value="">Välj status...</option>
+                          <option value="DENIED_NO_ACCESS">Nekad (ingen åtkomst)</option>
+                          <option value="BLOCKED_USER">Blockerad användare</option>
+                          <option value="DENIED_OUTSIDE_HOURS">Nekad (utanför öppettider)</option>
+                        </select>
+                      )}
+
+                      {newFilterType === 'eventtype' && (
+                        <select
+                          value={newFilterValue}
+                          onChange={(e) => setNewFilterValue(e.target.value)}
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm flex-1"
+                        >
+                          <option value="">Välj typ...</option>
+                          <option value="DOOR">Dörr</option>
+                          <option value="REGISTRATION">Registrering</option>
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleAddCustomFilter}
+                    disabled={!newFilterValue}
+                  >
+                    Lägg till
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setShowAddFilter(false);
+                      setNewFilterValue('');
+                    }}
+                  >
+                    Avbryt
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -579,7 +646,7 @@ export default function AptusOverview() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {activeTab === 'unidentified' ? 'Icke identifierade RFID-försök' : 'Blockerade användare'}
+            Access-händelser ({filteredEvents.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -594,96 +661,75 @@ export default function AptusOverview() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {activeTab === 'unidentified' ? (
-                      <>
-                        <SortableHeader field="rfid">RFID-nummer</SortableHeader>
-                        <TableHead>Status</TableHead>
-                        <SortableHeader field="count">Antal försök</SortableHeader>
-                        <SortableHeader field="firstAttempt">Första försök</SortableHeader>
-                        <SortableHeader field="lastAttempt">Senaste försök</SortableHeader>
-                        <SortableHeader field="department">Avdelning</SortableHeader>
-                        <SortableHeader field="eventtype">Typ</SortableHeader>
-                      </>
-                    ) : (
-                      <>
-                        <SortableHeader field="eventtime">Tidpunkt</SortableHeader>
-                        <SortableHeader field="username">Användare</SortableHeader>
-                        <SortableHeader field="userid">User ID</SortableHeader>
-                        <SortableHeader field="department">Avdelning</SortableHeader>
-                        <SortableHeader field="eventtype">Typ</SortableHeader>
-                        <SortableHeader field="accesscredential">RFID</SortableHeader>
-                      </>
-                    )}
+                    <SortableHeader field="eventtime">Tidpunkt</SortableHeader>
+                    <SortableHeader field="accesscredential">RFID</SortableHeader>
+                    <TableHead>Identifiering</TableHead>
+                    <SortableHeader field="username">Användarnamn</SortableHeader>
+                    <SortableHeader field="userid">User ID</SortableHeader>
+                    <SortableHeader field="department">Avdelning</SortableHeader>
+                    <SortableHeader field="eventtype">Typ</SortableHeader>
+                    <SortableHeader field="status">Status</SortableHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {activeTab === 'unidentified' ? (
-                    getGroupedRFIDData().map((item) => {
-                      const identification = rfidIdentifications.get(item.rfid);
-                      return (
-                        <TableRow key={item.rfid}>
-                          <TableCell className="font-mono font-medium">
-                            {item.rfid}
-                          </TableCell>
-                          <TableCell>
-                            {identification?.isIdentified ? (
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  <UserCheck className="h-3 w-3 mr-1" />
-                                  Identifierad
-                                </Badge>
-                                {identification.member ? (
-                                  <Link
-                                    to={`/medlem/${identification.member.id}`}
-                                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                                  >
-                                    {identification.member.first_name} {identification.member.last_name}
-                                    <ExternalLink className="h-3 w-3" />
-                                  </Link>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">
-                                    (User ID: {identification.userid})
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <Badge variant="secondary">Oidentifierad</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="destructive">
-                              {item.count}x
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {formatTimestamp(item.firstAttempt)}
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {formatTimestamp(item.lastAttempt)}
-                          </TableCell>
-                          <TableCell>{getDepartmentBadge(item.department)}</TableCell>
-                          <TableCell>{getEventTypeBadge(item.eventtype)}</TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    getSortedBlockedEvents().map((event) => (
+                  {getSortedEvents().map((event) => {
+                    const identification = event.accesscredential ? rfidIdentifications.get(event.accesscredential) : null;
+
+                    return (
                       <TableRow key={event.id}>
                         <TableCell className="font-mono text-sm">
                           {formatTimestamp(event.eventtime)}
+                        </TableCell>
+                        <TableCell>
+                          {event.accesscredential ? (
+                            <button
+                              onClick={() => addFilter('rfid', event.accesscredential!, `RFID: ${event.accesscredential}`)}
+                              className="font-mono font-medium hover:underline cursor-pointer text-blue-600 hover:text-blue-800"
+                            >
+                              {event.accesscredential}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {identification?.isIdentified ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap">
+                                <UserCheck className="h-3 w-3 mr-1" />
+                                Identifierad
+                              </Badge>
+                              {identification.member && (
+                                <Link
+                                  to={`/medlem/${identification.member.id}`}
+                                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap"
+                                >
+                                  {identification.member.first_name} {identification.member.last_name}
+                                  <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              )}
+                            </div>
+                          ) : event.status === 'DENIED_NO_ACCESS' ? (
+                            <Badge variant="secondary">Oidentifierad</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
                         </TableCell>
                         <TableCell>{event.username || 'Okänd'}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {event.userid && event.userid !== 'null' ? event.userid : '-'}
                         </TableCell>
-                        <TableCell>{getDepartmentBadge(event.department)}</TableCell>
-                        <TableCell>{getEventTypeBadge(event.eventtype)}</TableCell>
-                        <TableCell className="font-mono">
-                          {event.accesscredential || '-'}
+                        <TableCell>
+                          {getDepartmentBadge(event.department, () => {
+                            const label = event.department === 'LADIES' ? 'Damer' : 'Herrar';
+                            addFilter('department', event.department, `Avdelning: ${label}`);
+                          })}
                         </TableCell>
+                        <TableCell>{getEventTypeBadge(event.eventtype)}</TableCell>
+                        <TableCell>{getStatusBadge(event.status)}</TableCell>
                       </TableRow>
-                    ))
-                  )}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
