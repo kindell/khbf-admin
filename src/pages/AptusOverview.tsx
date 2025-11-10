@@ -32,6 +32,7 @@ interface Member {
   last_name: string;
   aptus_user_id: string;
   status: string;
+  fortnox_customer_number?: string;
 }
 
 interface RFIDIdentification {
@@ -299,6 +300,51 @@ export default function AptusOverview() {
         });
       }
     });
+
+    // For RFIDs not yet identified, check aptus_users table
+    const unidentifiedRFIDs = Array.from(deniedRFIDs).filter(rfid => !identMap.has(rfid));
+
+    if (unidentifiedRFIDs.length > 0) {
+      const { data: aptusUsers, error: aptusError } = await supabase
+        .from('aptus_users')
+        .select('card, f0')
+        .in('card', unidentifiedRFIDs)
+        .not('f0', 'is', null);
+
+      if (!aptusError && aptusUsers && aptusUsers.length > 0) {
+        // Get unique fortnox numbers
+        const fortnoxNumbers = [...new Set(aptusUsers.map(u => u.f0).filter(Boolean))];
+
+        // Fetch members with these fortnox numbers
+        const { data: aptusMembers, error: aptusLookupError } = await supabase
+          .from('members')
+          .select('id, first_name, last_name, aptus_user_id, status, fortnox_customer_number')
+          .in('fortnox_customer_number', fortnoxNumbers);
+
+        if (!aptusLookupError && aptusMembers) {
+          // Create map of fortnox_customer_number -> member
+          const membersByFortnox = new Map<string, Member>();
+          aptusMembers.forEach(member => {
+            if (member.fortnox_customer_number) {
+              membersByFortnox.set(member.fortnox_customer_number, member);
+            }
+          });
+
+          // Link RFIDs to members via aptus_users
+          aptusUsers.forEach(aptusUser => {
+            const member = membersByFortnox.get(aptusUser.f0);
+            if (member && !identMap.has(aptusUser.card)) {
+              identMap.set(aptusUser.card, {
+                rfid: aptusUser.card,
+                isIdentified: true,
+                userid: member.aptus_user_id || null,
+                member: member,
+              });
+            }
+          });
+        }
+      }
+    }
 
     setRfidIdentifications(identMap);
   }
