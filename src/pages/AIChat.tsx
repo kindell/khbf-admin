@@ -3,7 +3,7 @@ import { supabase, type Member } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Select } from '../components/ui/select';
 import { Send, Trash2, Bot, User as UserIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -232,18 +232,14 @@ export default function AIChat() {
               <label className="text-sm text-muted-foreground mb-2 block">
                 Prata som:
               </label>
-              <Select value={selectedMemberId} onValueChange={handleMemberChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Välj medlem..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {members.map(member => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.first_name} {member.last_name}
-                      {member.phone && ` (${member.phone})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={selectedMemberId} onChange={(e) => handleMemberChange(e.target.value)}>
+                <option value="">Välj medlem...</option>
+                {members.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.first_name} {member.last_name}
+                    {member.phone && ` (${member.phone})`}
+                  </option>
+                ))}
               </Select>
             </div>
 
