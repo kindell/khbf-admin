@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, UserCheck, ExternalLink, X, Plus } from 'lucide-react';
+import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, X, ShieldOff, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AptusEvent {
@@ -49,14 +49,43 @@ interface Stats {
 }
 
 interface Filter {
-  type: 'rfid' | 'department' | 'status' | 'eventtype';
+  type: 'rfid' | 'department' | 'status' | 'eventtype' | 'text';
   value: string;
   label: string;
 }
 
+interface Suggestion {
+  type: 'rfid' | 'department' | 'status' | 'eventtype';
+  value: string;
+  label: string;
+  display: string;
+}
+
 type TimeFilterType = '7' | '30' | '90';
-type SortField = 'eventtime' | 'username' | 'userid' | 'department' | 'eventtype' | 'accesscredential' | 'status';
+type SortField = 'eventtime' | 'username' | 'userid' | 'department' | 'eventtype' | 'accesscredential' | 'status' | 'member';
 type SortDirection = 'asc' | 'desc';
+
+// Member Avatar Component
+function MemberAvatar({ member, size = 'sm' }: { member: Member; size?: 'sm' | 'md' }) {
+  const initials = `${member.first_name[0]}${member.last_name[0]}`.toUpperCase();
+  const sizeClasses = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
+
+  // Generate consistent color based on member ID
+  const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-indigo-500'];
+  const colorIndex = member.id.charCodeAt(0) % colors.length;
+  const colorClass = colors[colorIndex];
+
+  return (
+    <Link to={`/medlem/${member.id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+      <div className={`${sizeClasses} ${colorClass} rounded-full flex items-center justify-center text-white font-medium shrink-0`}>
+        {initials}
+      </div>
+      <span className="text-sm text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap">
+        {member.first_name} {member.last_name}
+      </span>
+    </Link>
+  );
+}
 
 export default function AptusOverview() {
   const [events, setEvents] = useState<AptusEvent[]>([]);
@@ -69,14 +98,15 @@ export default function AptusOverview() {
     outsideHours: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [sortField, setSortField] = useState<SortField>('eventtime');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filters, setFilters] = useState<Filter[]>([]);
   const [timeFilter, setTimeFilter] = useState<TimeFilterType>('30');
-  const [showAddFilter, setShowAddFilter] = useState(false);
-  const [newFilterType, setNewFilterType] = useState<'rfid' | 'department' | 'status' | 'eventtype'>('rfid');
-  const [newFilterValue, setNewFilterValue] = useState('');
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadEvents();
@@ -102,7 +132,98 @@ export default function AptusOverview() {
 
   useEffect(() => {
     filterEvents();
-  }, [events, search, filters]);
+  }, [events, filters]);
+
+  // Generate suggestions based on search input
+  useEffect(() => {
+    if (!searchInput.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const input = searchInput.toLowerCase();
+    const newSuggestions: Suggestion[] = [];
+
+    // RFID suggestions
+    const uniqueRFIDs = new Set(events.map(e => e.accesscredential).filter(Boolean));
+    uniqueRFIDs.forEach(rfid => {
+      if (rfid!.toLowerCase().includes(input)) {
+        newSuggestions.push({
+          type: 'rfid',
+          value: rfid!,
+          label: `RFID: ${rfid}`,
+          display: `RFID: ${rfid}`,
+        });
+      }
+    });
+
+    // Department suggestions
+    if ('damer'.includes(input) || 'ladies'.includes(input)) {
+      newSuggestions.push({
+        type: 'department',
+        value: 'LADIES',
+        label: 'Avdelning: Damer',
+        display: 'Avdelning: Damer',
+      });
+    }
+    if ('herrar'.includes(input) || 'gents'.includes(input)) {
+      newSuggestions.push({
+        type: 'department',
+        value: 'GENTS',
+        label: 'Avdelning: Herrar',
+        display: 'Avdelning: Herrar',
+      });
+    }
+
+    // Status suggestions
+    if ('nekad'.includes(input) || 'denied'.includes(input) || 'no access'.includes(input)) {
+      newSuggestions.push({
+        type: 'status',
+        value: 'DENIED_NO_ACCESS',
+        label: 'Status: Nekad (ingen åtkomst)',
+        display: 'Status: Nekad (ingen åtkomst)',
+      });
+    }
+    if ('blockerad'.includes(input) || 'blocked'.includes(input)) {
+      newSuggestions.push({
+        type: 'status',
+        value: 'BLOCKED_USER',
+        label: 'Status: Blockerad',
+        display: 'Status: Blockerad användare',
+      });
+    }
+    if ('utanför'.includes(input) || 'öppettider'.includes(input) || 'outside'.includes(input) || 'hours'.includes(input)) {
+      newSuggestions.push({
+        type: 'status',
+        value: 'DENIED_OUTSIDE_HOURS',
+        label: 'Status: Utanför öppettider',
+        display: 'Status: Nekad (utanför öppettider)',
+      });
+    }
+
+    // Event type suggestions
+    if ('dörr'.includes(input) || 'door'.includes(input)) {
+      newSuggestions.push({
+        type: 'eventtype',
+        value: 'DOOR',
+        label: 'Typ: Dörr',
+        display: 'Händelsetyp: Dörr',
+      });
+    }
+    if ('registrering'.includes(input) || 'registration'.includes(input)) {
+      newSuggestions.push({
+        type: 'eventtype',
+        value: 'REGISTRATION',
+        label: 'Typ: Registrering',
+        display: 'Händelsetyp: Registrering',
+      });
+    }
+
+    setSuggestions(newSuggestions.slice(0, 8)); // Limit to 8 suggestions
+    setShowSuggestions(newSuggestions.length > 0);
+    setSelectedSuggestionIndex(-1);
+  }, [searchInput, events]);
 
   async function loadEvents() {
     setLoading(true);
@@ -240,27 +361,25 @@ export default function AptusOverview() {
         case 'eventtype':
           filtered = filtered.filter(e => e.eventtype === filter.value);
           break;
+        case 'text':
+          const searchLower = filter.value.toLowerCase();
+          filtered = filtered.filter(e =>
+            e.accesscredential?.includes(filter.value) ||
+            e.username?.toLowerCase().includes(searchLower) ||
+            e.userid?.includes(filter.value)
+          );
+          break;
       }
     });
-
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      filtered = filtered.filter(e =>
-        e.accesscredential?.includes(search) ||
-        e.username?.toLowerCase().includes(searchLower) ||
-        e.userid?.includes(search)
-      );
-    }
 
     setFilteredEvents(filtered);
   }
 
-  function addFilter(type: Filter['type'], value: string, label: string) {
+  function addFilter(filter: Filter) {
     // Don't add duplicate filters
-    const exists = filters.some(f => f.type === type && f.value === value);
+    const exists = filters.some(f => f.type === filter.type && f.value === filter.value);
     if (!exists) {
-      setFilters([...filters, { type, value, label }]);
+      setFilters([...filters, filter]);
     }
   }
 
@@ -268,40 +387,72 @@ export default function AptusOverview() {
     setFilters(filters.filter((_, i) => i !== index));
   }
 
-  function handleAddCustomFilter() {
-    if (!newFilterValue) return;
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
 
-    let label = '';
-    switch (newFilterType) {
-      case 'rfid':
-        label = `RFID: ${newFilterValue}`;
-        break;
-      case 'department':
-        label = `Avdelning: ${newFilterValue === 'LADIES' ? 'Damer' : 'Herrar'}`;
-        break;
-      case 'status':
-        label = `Status: ${getStatusLabel(newFilterValue)}`;
-        break;
-      case 'eventtype':
-        label = `Typ: ${newFilterValue === 'DOOR' ? 'Dörr' : 'Registrering'}`;
-        break;
+      if (selectedSuggestionIndex >= 0 && suggestions[selectedSuggestionIndex]) {
+        // Add selected suggestion
+        handleSelectSuggestion(suggestions[selectedSuggestionIndex]);
+      } else if (searchInput.trim()) {
+        // Add as text filter
+        addFilter({
+          type: 'text',
+          value: searchInput.trim(),
+          label: searchInput.trim(),
+        });
+        setSearchInput('');
+        setShowSuggestions(false);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev =>
+        prev < suggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setSelectedSuggestionIndex(-1);
     }
+  }
 
-    addFilter(newFilterType, newFilterValue, label);
-    setNewFilterValue('');
-    setShowAddFilter(false);
+  function handleSelectSuggestion(suggestion: Suggestion) {
+    addFilter({
+      type: suggestion.type,
+      value: suggestion.value,
+      label: suggestion.label,
+    });
+    setSearchInput('');
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+    searchInputRef.current?.focus();
   }
 
   function getStatusLabel(status: string): string {
     switch (status) {
       case 'DENIED_NO_ACCESS':
-        return 'Nekad (ingen åtkomst)';
+        return 'Nekad';
       case 'BLOCKED_USER':
-        return 'Blockerad användare';
+        return 'Blockerad';
       case 'DENIED_OUTSIDE_HOURS':
-        return 'Nekad (utanför öppettider)';
+        return 'Stängt';
       default:
         return status;
+    }
+  }
+
+  function getStatusIcon(status: string) {
+    switch (status) {
+      case 'DENIED_NO_ACCESS':
+        return <ShieldOff className="h-4 w-4" />;
+      case 'BLOCKED_USER':
+        return <Lock className="h-4 w-4" />;
+      case 'DENIED_OUTSIDE_HOURS':
+        return <Clock className="h-4 w-4" />;
+      default:
+        return null;
     }
   }
 
@@ -314,8 +465,22 @@ export default function AptusOverview() {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
     });
+  }
+
+  function formatCompactTimestamp(timestamp: string) {
+    const date = new Date(timestamp);
+    const dateStr = date.toLocaleDateString('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const timeStr = date.toLocaleTimeString('sv-SE', {
+      timeZone: 'Europe/Stockholm',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return { date: dateStr, time: timeStr };
   }
 
   function getDepartmentBadge(department: string, onClick?: () => void) {
@@ -344,9 +509,12 @@ export default function AptusOverview() {
     if (status === 'BLOCKED_USER') variant = 'destructive';
 
     return (
-      <Badge variant={variant}>
-        {getStatusLabel(status)}
-      </Badge>
+      <div className="flex items-center gap-2">
+        {getStatusIcon(status)}
+        <Badge variant={variant}>
+          {getStatusLabel(status)}
+        </Badge>
+      </div>
     );
   }
 
@@ -410,6 +578,14 @@ export default function AptusOverview() {
           break;
         case 'status':
           comparison = a.status.localeCompare(b.status);
+          break;
+        case 'member':
+          const memberA = a.accesscredential ? rfidIdentifications.get(a.accesscredential)?.member : null;
+          const memberB = b.accesscredential ? rfidIdentifications.get(b.accesscredential)?.member : null;
+          if (!memberA && !memberB) comparison = 0;
+          else if (!memberA) comparison = 1;
+          else if (!memberB) comparison = -1;
+          else comparison = `${memberA.first_name} ${memberA.last_name}`.localeCompare(`${memberB.first_name} ${memberB.last_name}`);
           break;
       }
 
@@ -507,137 +683,66 @@ export default function AptusOverview() {
         </Card>
       </div>
 
-      {/* Advanced Search & Filters */}
+      {/* Autosuggest Search with Chips */}
       <Card>
         <CardContent className="pt-6">
-          <div className="space-y-4">
-            {/* Search input */}
+          <div className="space-y-3">
+            {/* Search input with chips */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Sök namn, user ID eller RFID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            {/* Active filters */}
-            {filters.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+              <div className="min-h-[42px] flex flex-wrap items-center gap-1.5 border rounded-md pl-9 pr-3 py-1.5 focus-within:ring-2 focus-within:ring-ring">
+                {/* Filter chips */}
                 {filters.map((filter, index) => (
                   <Badge
                     key={index}
                     variant="secondary"
-                    className="flex items-center gap-1 px-3 py-1"
+                    className="flex items-center gap-1 px-2 py-1"
                   >
-                    <span>{filter.label}</span>
+                    <span className="text-xs">{filter.label}</span>
                     <button
                       onClick={() => removeFilter(index)}
-                      className="ml-1 hover:text-destructive"
+                      className="hover:text-destructive"
                     >
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
                 ))}
+                {/* Search input */}
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  onFocus={() => searchInput && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  placeholder={filters.length === 0 ? "Sök eller välj filter..." : ""}
+                  className="flex-1 min-w-[120px] outline-none bg-transparent text-sm"
+                />
               </div>
-            )}
 
-            {/* Add filter section */}
-            <div>
-              {!showAddFilter ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddFilter(true)}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Lägg till filter
-                </Button>
-              ) : (
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex gap-2">
-                      <select
-                        value={newFilterType}
-                        onChange={(e) => {
-                          setNewFilterType(e.target.value as any);
-                          setNewFilterValue('');
-                        }}
-                        className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="rfid">RFID-nummer</option>
-                        <option value="department">Avdelning</option>
-                        <option value="status">Status</option>
-                        <option value="eventtype">Händelsetyp</option>
-                      </select>
-
-                      {newFilterType === 'rfid' && (
-                        <Input
-                          placeholder="RFID-nummer..."
-                          value={newFilterValue}
-                          onChange={(e) => setNewFilterValue(e.target.value)}
-                        />
-                      )}
-
-                      {newFilterType === 'department' && (
-                        <select
-                          value={newFilterValue}
-                          onChange={(e) => setNewFilterValue(e.target.value)}
-                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm flex-1"
-                        >
-                          <option value="">Välj avdelning...</option>
-                          <option value="LADIES">Damer</option>
-                          <option value="GENTS">Herrar</option>
-                        </select>
-                      )}
-
-                      {newFilterType === 'status' && (
-                        <select
-                          value={newFilterValue}
-                          onChange={(e) => setNewFilterValue(e.target.value)}
-                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm flex-1"
-                        >
-                          <option value="">Välj status...</option>
-                          <option value="DENIED_NO_ACCESS">Nekad (ingen åtkomst)</option>
-                          <option value="BLOCKED_USER">Blockerad användare</option>
-                          <option value="DENIED_OUTSIDE_HOURS">Nekad (utanför öppettider)</option>
-                        </select>
-                      )}
-
-                      {newFilterType === 'eventtype' && (
-                        <select
-                          value={newFilterValue}
-                          onChange={(e) => setNewFilterValue(e.target.value)}
-                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm flex-1"
-                        >
-                          <option value="">Välj typ...</option>
-                          <option value="DOOR">Dörr</option>
-                          <option value="REGISTRATION">Registrering</option>
-                        </select>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={handleAddCustomFilter}
-                    disabled={!newFilterValue}
-                  >
-                    Lägg till
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowAddFilter(false);
-                      setNewFilterValue('');
-                    }}
-                  >
-                    Avbryt
-                  </Button>
+              {/* Suggestions dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={`${suggestion.type}-${suggestion.value}`}
+                      onClick={() => handleSelectSuggestion(suggestion)}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                        index === selectedSuggestionIndex ? 'bg-accent' : ''
+                      }`}
+                    >
+                      {suggestion.display}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
+
+            {/* Hint text */}
+            <p className="text-xs text-muted-foreground">
+              Börja skriva för att få förslag, eller klicka på RFID/avdelning i tabellen
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -661,58 +766,54 @@ export default function AptusOverview() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <SortableHeader field="status">Status</SortableHeader>
+                    <SortableHeader field="member">Medlem</SortableHeader>
                     <SortableHeader field="eventtime">Tidpunkt</SortableHeader>
                     <SortableHeader field="accesscredential">RFID</SortableHeader>
-                    <TableHead>Identifiering</TableHead>
                     <SortableHeader field="username">Användarnamn</SortableHeader>
                     <SortableHeader field="userid">User ID</SortableHeader>
                     <SortableHeader field="department">Avdelning</SortableHeader>
                     <SortableHeader field="eventtype">Typ</SortableHeader>
-                    <SortableHeader field="status">Status</SortableHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {getSortedEvents().map((event) => {
                     const identification = event.accesscredential ? rfidIdentifications.get(event.accesscredential) : null;
+                    const member = identification?.member;
+                    const { date, time } = formatCompactTimestamp(event.eventtime);
 
                     return (
                       <TableRow key={event.id}>
-                        <TableCell className="font-mono text-sm">
-                          {formatTimestamp(event.eventtime)}
+                        <TableCell className="whitespace-nowrap">
+                          {getStatusBadge(event.status)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {member ? (
+                            <MemberAvatar member={member} />
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span>{date}</span>
+                            <span className="text-muted-foreground">{time}</span>
+                          </div>
                         </TableCell>
                         <TableCell>
                           {event.accesscredential ? (
                             <button
-                              onClick={() => addFilter('rfid', event.accesscredential!, `RFID: ${event.accesscredential}`)}
+                              onClick={() => addFilter({
+                                type: 'rfid',
+                                value: event.accesscredential!,
+                                label: `RFID: ${event.accesscredential}`,
+                              })}
                               className="font-mono font-medium hover:underline cursor-pointer text-blue-600 hover:text-blue-800"
                             >
                               {event.accesscredential}
                             </button>
                           ) : (
                             <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {identification?.isIdentified ? (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap">
-                                <UserCheck className="h-3 w-3 mr-1" />
-                                Identifierad
-                              </Badge>
-                              {identification.member && (
-                                <Link
-                                  to={`/medlem/${identification.member.id}`}
-                                  className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap"
-                                >
-                                  {identification.member.first_name} {identification.member.last_name}
-                                  <ExternalLink className="h-3 w-3" />
-                                </Link>
-                              )}
-                            </div>
-                          ) : event.status === 'DENIED_NO_ACCESS' ? (
-                            <Badge variant="secondary">Oidentifierad</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
                         <TableCell>{event.username || 'Okänd'}</TableCell>
@@ -722,11 +823,14 @@ export default function AptusOverview() {
                         <TableCell>
                           {getDepartmentBadge(event.department, () => {
                             const label = event.department === 'LADIES' ? 'Damer' : 'Herrar';
-                            addFilter('department', event.department, `Avdelning: ${label}`);
+                            addFilter({
+                              type: 'department',
+                              value: event.department,
+                              label: `Avdelning: ${label}`,
+                            });
                           })}
                         </TableCell>
                         <TableCell>{getEventTypeBadge(event.eventtype)}</TableCell>
-                        <TableCell>{getStatusBadge(event.status)}</TableCell>
                       </TableRow>
                     );
                   })}
