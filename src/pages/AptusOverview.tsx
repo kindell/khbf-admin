@@ -634,7 +634,7 @@ export default function AptusOverview() {
                                 </Badge>
                                 {identification.member ? (
                                   <Link
-                                    to={`/members/${identification.member.id}`}
+                                    to={`/medlem/${identification.member.id}`}
                                     className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"
                                   >
                                     {identification.member.first_name} {identification.member.last_name}
