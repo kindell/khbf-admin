@@ -235,14 +235,14 @@ export default function AptusOverview() {
   }
 
   async function checkRFIDIdentifications(eventsData: AptusEvent[]) {
-    // Get all unique RFID numbers from DENIED_NO_ACCESS events
-    const deniedRFIDs = new Set(
+    // Get all unique RFID numbers from ALL events (not just denied)
+    const allRFIDs = new Set(
       eventsData
-        .filter(e => e.status === 'DENIED_NO_ACCESS' && e.accesscredential)
+        .filter(e => e.accesscredential)
         .map(e => e.accesscredential!)
     );
 
-    if (deniedRFIDs.size === 0) {
+    if (allRFIDs.size === 0) {
       return;
     }
 
@@ -250,7 +250,7 @@ export default function AptusOverview() {
     const { data: identifiedEvents, error: eventsError } = await supabase
       .from('events')
       .select('accesscredential, userid, member_id')
-      .in('accesscredential', Array.from(deniedRFIDs))
+      .in('accesscredential', Array.from(allRFIDs))
       .not('member_id', 'is', null)
       .order('eventtime', { ascending: false });
 
@@ -302,7 +302,7 @@ export default function AptusOverview() {
     });
 
     // For RFIDs not yet identified, check aptus_users table
-    const unidentifiedRFIDs = Array.from(deniedRFIDs).filter(rfid => !identMap.has(rfid));
+    const unidentifiedRFIDs = Array.from(allRFIDs).filter(rfid => !identMap.has(rfid));
 
     if (unidentifiedRFIDs.length > 0) {
       const { data: aptusUsers, error: aptusError } = await supabase
@@ -803,14 +803,25 @@ export default function AptusOverview() {
                         </TableCell>
                         <TableCell>
                           {member ? (
-                            <Link
-                              to={`/medlem/${member.id}`}
-                              className="text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {event.username === 'Okänd' || !event.username
-                                ? `Okänd (Länkad till ${member.first_name} ${member.last_name})`
-                                : event.username}
-                            </Link>
+                            event.username === 'Okänd' || !event.username ? (
+                              <span>
+                                Okänd (Länkad till{' '}
+                                <Link
+                                  to={`/medlem/${member.id}`}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                  {member.first_name} {member.last_name}
+                                </Link>
+                                )
+                              </span>
+                            ) : (
+                              <Link
+                                to={`/medlem/${member.id}`}
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {event.username}
+                              </Link>
+                            )
                           ) : (
                             <span>{event.username || 'Okänd'}</span>
                           )}
