@@ -232,7 +232,7 @@ function App() {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       // Run all queries in parallel for maximum performance
-      const [membersResult, visitsResult, phoneResult, relationsResult] = await Promise.all([
+      const [membersResult, visitsResult, phoneResult, relationsResult, badgesResult] = await Promise.all([
         // 1. Fetch all members (paginated)
         fetchAllMembers(),
 
@@ -248,7 +248,13 @@ function App() {
         // 4. Fetch member relations
         supabase
           .from('member_relations')
-          .select('medbadare_member_id, primary_member_id')
+          .select('medbadare_member_id, primary_member_id'),
+
+        // 5. Fetch active badges
+        supabase
+          .from('member_achievements')
+          .select('user_id, achievement_type, achievement_data')
+          .eq('is_active', true)
       ]);
 
       const membersData = membersResult;
@@ -289,7 +295,17 @@ function App() {
         relationsMap.set(r.medbadare_member_id, existing);
       });
 
-      // Merge member data with visit counts and phone numbers
+      // Build badges map
+      const badgesMap = new Map<string, any[]>();
+      badgesResult.data?.forEach(badge => {
+        const existing = badgesMap.get(badge.user_id) || [];
+        existing.push(badge);
+        badgesMap.set(badge.user_id, existing);
+      });
+
+      console.log(`✅ Loaded ${badgesResult.data?.length || 0} badges for ${badgesMap.size} members`);
+
+      // Merge member data with visit counts, phone numbers, and badges
       const membersWithVisits = membersData
         .filter(m => !m.is_system_account)
         .map(m => {
@@ -322,6 +338,7 @@ function App() {
             visits_total: totalVisits,
             last_visit_at: lastVisit,
             related_members: relationsMap.get(m.id) || [],
+            badges: badgesMap.get(m.id) || [],
           };
         });
 

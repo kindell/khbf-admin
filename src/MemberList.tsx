@@ -446,6 +446,48 @@ export default function MemberList({
     return badges;
   };
 
+  const getBadgeName = (achievementType: string): string => {
+    const badgeNames: Record<string, string> = {
+      // Streak badges
+      'streak_3d': '🔥 Hetluftsälskare',
+      'streak_7d': '⭐ Vecko-Mästare',
+      'streak_14d': '💪 Bastufantast',
+      'streak_30d': '👑 Månadens Bastare',
+
+      // Frequency badges
+      'monthly_champion': '🥇 Månadens Mästare',
+      'quarterly_champion': '🏆 Kvartals-Champion',
+      'top3_30d': '🥉 Medaljör',
+      'top10_30d': '⭐ Bas-Stjärna',
+      'veteran': '🎖️ Veteran',
+
+      // Time-based badges
+      'morning_bird': '🌅 Morgonpigg',
+      'evening_bastare': '🌆 Kvällsbastare',
+      'night_owl': '🦉 Nattuggla',
+
+      // Milestone badges
+      'visits_100': '💯 Hundralapp',
+      'visits_500': '🎯 Femhundralapp',
+      'visits_1000': '🚀 Tusenlapp',
+      'visits_5000': '⚡ Legendarisk',
+
+      // Anniversary badges
+      'newbie': '🌱 Nykomling',
+      'anniversary_1y': '🥉 Brons-Bastare',
+      'anniversary_5y': '🥈 Silver-Veteran',
+      'anniversary_10y': '🥇 Guld-Legend',
+      'anniversary_15y': '💎 Diamant-Pionjär',
+      'anniversary_20y': '👑 Platina-Ikon',
+
+      // Challenge badges
+      'weekly_warrior': '⚔️ Vecko-Warrior',
+      'monthly_marathon': '🏃 Månads-Marathon',
+    };
+
+    return badgeNames[achievementType] || achievementType.replace(/_/g, ' ');
+  };
+
   const getDisplayCategory = (member: Member & { category: MemberCategory }) => {
     return member.category;
   };
@@ -585,6 +627,7 @@ export default function MemberList({
                 </TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Avgifter</TableHead>
+                <TableHead>Badges</TableHead>
                 {!isQueueView && <TableHead>Access</TableHead>}
                 {!isQueueView && (
                   <TableHead
@@ -639,6 +682,24 @@ export default function MemberList({
                       ))}
                       {getPaymentBadges(member).length === 0 && (
                         <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {member.badges && member.badges.length > 0 ? (
+                        member.badges.slice(0, 3).map((badge: any) => (
+                          <Badge key={badge.achievement_type} variant="secondary" className="text-xs">
+                            {getBadgeName(badge.achievement_type)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                      {member.badges && member.badges.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{member.badges.length - 3}
+                        </Badge>
                       )}
                     </div>
                   </TableCell>
