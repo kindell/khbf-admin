@@ -24,6 +24,7 @@ interface SMS {
   broadcast_recipient_count?: number;
   reaction_emoji?: string | null;
   is_ai?: boolean;
+  ai_processed?: boolean;
 }
 
 interface ThreadInfo {
@@ -338,6 +339,35 @@ export function SMSThread() {
     }
   }
 
+  async function retryAIResponse(messageId: string) {
+    try {
+      const { error } = await supabase
+        .from('sms_queue')
+        .update({
+          ai_processed: null,
+          ai_processed_at: null,
+          ai_error: null
+        })
+        .eq('id', messageId)
+        .eq('direction', 'inbound');
+
+      if (error) throw error;
+
+      // Update local state to remove the ai_processed flag
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId ? { ...msg, ai_processed: false } : msg
+        )
+      );
+
+      // Show success message
+      alert('AI kommer generera ett nytt svar inom 5 sekunder! ⏳');
+    } catch (error) {
+      console.error('Failed to retry AI response:', error);
+      alert('Kunde inte trigga nytt AI-svar');
+    }
+  }
+
   if (loading) {
     return (
       <MobileContainer>
@@ -386,6 +416,9 @@ export function SMSThread() {
                 showTimestampOnLoad={msg.showTimestampOnLoad}
                 reactionEmoji={msg.reaction_emoji}
                 isAI={msg.is_ai}
+                messageId={msg.id}
+                aiProcessed={msg.ai_processed}
+                onRetryAI={retryAIResponse}
               />
             ))
           )}

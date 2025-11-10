@@ -11,6 +11,9 @@ interface MessageBubbleProps {
   showTimestampOnLoad?: boolean;
   reactionEmoji?: string | null;
   isAI?: boolean;
+  messageId?: string;
+  aiProcessed?: boolean;
+  onRetryAI?: (messageId: string) => void;
 }
 
 function cn(...classes: (string | boolean | undefined)[]) {
@@ -35,9 +38,13 @@ export function MessageBubble({
   isLastInGroup = true,
   showTimestampOnLoad = false,
   reactionEmoji = null,
-  isAI = false
+  isAI = false,
+  messageId,
+  aiProcessed = false,
+  onRetryAI
 }: MessageBubbleProps) {
   const [showTimestamp, setShowTimestamp] = useState(showTimestampOnLoad);
+  const [isHovered, setIsHovered] = useState(false);
 
   // Determine border radius based on grouping and direction
   let borderRadiusClass = '';
@@ -74,6 +81,8 @@ export function MessageBubble({
         "flex flex-col gap-1",
         direction === 'outbound' ? 'items-end' : 'items-start'
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Timestamp (shown on click) */}
       {showTimestamp && (
@@ -139,6 +148,20 @@ export function MessageBubble({
           )}
           {isAI && <span className="opacity-60">🤖 AI</span>}
         </div>
+      )}
+
+      {/* Retry AI button (only for inbound messages that have been AI processed) */}
+      {direction === 'inbound' && aiProcessed && isLastInGroup && messageId && onRetryAI && isHovered && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRetryAI(messageId);
+          }}
+          className="text-xs text-blue-600 hover:text-blue-800 px-4 mt-1 flex items-center gap-1 transition-colors"
+        >
+          <span>🔄</span>
+          <span>Skicka nytt AI-svar</span>
+        </button>
       )}
     </div>
   );
