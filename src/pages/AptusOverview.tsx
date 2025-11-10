@@ -448,17 +448,14 @@ export default function AptusOverview() {
 
   function formatCompactTimestamp(timestamp: string) {
     const date = new Date(timestamp);
-    const dateStr = date.toLocaleDateString('sv-SE', {
+    return date.toLocaleString('sv-SE', {
       timeZone: 'Europe/Stockholm',
+      year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    });
-    const timeStr = date.toLocaleTimeString('sv-SE', {
-      timeZone: 'Europe/Stockholm',
       hour: '2-digit',
       minute: '2-digit',
     });
-    return { date: dateStr, time: timeStr };
   }
 
   function getDepartmentBadge(department: string, onClick?: () => void) {
@@ -740,7 +737,6 @@ export default function AptusOverview() {
                     <SortableHeader field="status">Status</SortableHeader>
                     <SortableHeader field="username">Användarnamn</SortableHeader>
                     <SortableHeader field="accesscredential">RFID</SortableHeader>
-                    <SortableHeader field="userid">User ID</SortableHeader>
                     <SortableHeader field="department">Avdelning</SortableHeader>
                     <SortableHeader field="eventtype">Typ</SortableHeader>
                   </TableRow>
@@ -749,15 +745,12 @@ export default function AptusOverview() {
                   {getSortedEvents().map((event) => {
                     const identification = event.accesscredential ? rfidIdentifications.get(event.accesscredential) : null;
                     const member = identification?.member;
-                    const { date, time } = formatCompactTimestamp(event.eventtime);
+                    const formattedTime = formatCompactTimestamp(event.eventtime);
 
                     return (
                       <TableRow key={event.id}>
                         <TableCell className="font-mono text-sm whitespace-nowrap">
-                          <div className="flex flex-col">
-                            <span>{date}</span>
-                            <span className="text-muted-foreground">{time}</span>
-                          </div>
+                          {formattedTime}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {getStatusBadge(event.status)}
@@ -768,7 +761,9 @@ export default function AptusOverview() {
                               to={`/medlem/${member.id}`}
                               className="text-blue-600 hover:text-blue-800 hover:underline"
                             >
-                              {event.username || 'Okänd'}
+                              {event.username === 'Okänd' || !event.username
+                                ? `Okänd (Länkad till ${member.first_name} ${member.last_name})`
+                                : event.username}
                             </Link>
                           ) : (
                             <span>{event.username || 'Okänd'}</span>
@@ -789,9 +784,6 @@ export default function AptusOverview() {
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {event.userid && event.userid !== 'null' ? event.userid : '-'}
                         </TableCell>
                         <TableCell>
                           {getDepartmentBadge(event.department, () => {
