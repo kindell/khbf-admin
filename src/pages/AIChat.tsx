@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase, type Member } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -7,6 +7,14 @@ import { Select } from '../components/ui/select';
 import { Send, Trash2, Bot, User as UserIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
+
+interface ChatMember {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  status: string;
+}
 
 interface ChatMessage {
   id: string;
@@ -26,7 +34,7 @@ interface ChatThread {
 
 export default function AIChat() {
   const [session, setSession] = useState<{ memberId: string; email: string } | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<ChatMember[]>([]);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -189,6 +197,7 @@ export default function AIChat() {
     }
 
     setInputMessage('');
+    setLoading(false);
 
     // Messages will be updated via realtime subscription
     // AI will process and respond automatically

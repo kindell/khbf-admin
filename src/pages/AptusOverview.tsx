@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import {
@@ -12,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, X, ShieldOff, Lock } from 'lucide-react';
+import { Search, ShieldAlert, ShieldX, Clock, ArrowUpDown, ArrowUp, ArrowDown, X, ShieldOff, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AptusEvent {
@@ -478,18 +477,6 @@ export default function AptusOverview() {
       default:
         return null;
     }
-  }
-
-  function formatTimestamp(timestamp: string) {
-    const date = new Date(timestamp);
-    return date.toLocaleString('sv-SE', {
-      timeZone: 'Europe/Stockholm',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
 
   function formatCompactTimestamp(timestamp: string) {
