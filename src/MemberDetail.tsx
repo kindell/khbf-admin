@@ -295,13 +295,11 @@ export default function MemberDetail() {
 
     setEmails(emailList);
 
-    // Fetch recent visits (last 90 days) using user IDs
-    const userIds = [currentMember.aptus_user_id, currentMember.parakey_user_id].filter(Boolean);
-
+    // Fetch recent visits (last 90 days) using member_id
     const { data: visitData } = await supabase
       .from('visits')
       .select('id, eventtime, department, groupsize, accesscredential')
-      .in('userid', userIds)
+      .eq('member_id', currentMember.id)
       .gte('eventtime', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
       .order('eventtime', { ascending: false })
       .limit(50);
@@ -320,18 +318,17 @@ export default function MemberDetail() {
       last: string;
     }>();
 
-    if (currentMember.aptus_user_id) {
-      // Get all visits with RFID cards for this user
-      const { data: rfidVisits } = await supabase
-        .from('visits')
-        .select('accesscredential, department, eventtime')
-        .eq('userid', currentMember.aptus_user_id)
-        .not('accesscredential', 'is', null)
-        .order('eventtime', { ascending: true });
+    // Get all visits with RFID cards for this member
+    const { data: rfidVisits } = await supabase
+      .from('visits')
+      .select('accesscredential, department, eventtime')
+      .eq('member_id', currentMember.id)
+      .not('accesscredential', 'is', null)
+      .order('eventtime', { ascending: true });
 
-      rfidVisits?.forEach(visit => {
-        const card = visit.accesscredential;
-        if (!card) return;
+    rfidVisits?.forEach(visit => {
+      const card = visit.accesscredential;
+      if (!card) return;
 
         const stats = cardStats.get(card) || {
           total: 0,
@@ -406,12 +403,12 @@ export default function MemberDetail() {
 
       parakeyEmail = parakeyUser?.email || null;
 
-      // Get department statistics for Parakey visits (userid = parakey_user_id for Parakey visits)
-      if (currentMember.parakey_user_id && parakeyEmail) {
+      // Get department statistics for Parakey visits
+      if (parakeyEmail) {
         const { data: parakeyVisits } = await supabase
           .from('visits')
           .select('department')
-          .eq('userid', currentMember.parakey_user_id)
+          .eq('member_id', currentMember.id)
           .eq('accesscredential', parakeyEmail);
 
         if (parakeyVisits && parakeyVisits.length > 0) {
