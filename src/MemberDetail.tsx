@@ -6,10 +6,11 @@ import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Separator } from './components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { ArrowLeft, CreditCard, Smartphone, Key, Calendar, MessageSquare, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, Key, Calendar, MessageSquare, Users, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import { RelatedMembers } from './components/RelatedMembers';
 import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
 import { MemberDetailSkeleton } from './components/MemberDetailSkeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 
 interface PhoneMapping {
   phone_number: string;
@@ -81,6 +82,52 @@ interface ThreadData {
   last_message_at: string;
   unread_count: number;
 }
+
+const getBadgeInfo = (achievementType: string): { emoji: string; name: string; description: string } => {
+  const badgeInfo: Record<string, { emoji: string; name: string; description: string }> = {
+    // Streak badges
+    'streak_3d': { emoji: '🔥', name: 'Hetluftsälskare', description: 'Besökt bastun 3 dagar i rad' },
+    'streak_7d': { emoji: '⭐', name: 'Vecko-Mästare', description: 'Besökt bastun 7 dagar i rad' },
+    'streak_14d': { emoji: '💪', name: 'Bastufantast', description: 'Besökt bastun 14 dagar i rad' },
+    'streak_30d': { emoji: '👑', name: 'Månadens Bastare', description: 'Besökt bastun 30 dagar i rad' },
+
+    // Frequency badges
+    'monthly_champion': { emoji: '🥇', name: 'Månadens Mästare', description: 'Flest besök senaste månaden' },
+    'quarterly_champion': { emoji: '🏆', name: 'Kvartals-Champion', description: 'Flest besök senaste kvartalet' },
+    'top3_30d': { emoji: '🥉', name: 'Medaljör', description: 'Topp 3 mest aktiva senaste månaden' },
+    'top10_30d': { emoji: '⭐', name: 'Bas-Stjärna', description: 'Topp 10 mest aktiva senaste månaden' },
+    'veteran': { emoji: '🎖️', name: 'Veteran', description: 'Medlem i över 10 år' },
+
+    // Time-based badges
+    'morning_bird': { emoji: '🌅', name: 'Morgonpigg', description: 'Flest besök 06-10 på morgonen' },
+    'evening_bastare': { emoji: '🌆', name: 'Kvällsbastare', description: 'Flest besök 17-21 på kvällen' },
+    'night_owl': { emoji: '🦉', name: 'Nattuggla', description: 'Flest besök 21-01 på natten' },
+
+    // Milestone badges
+    'visits_100': { emoji: '💯', name: 'Hundralapp', description: 'Totalt 100 besök' },
+    'visits_500': { emoji: '🎯', name: 'Femhundralapp', description: 'Totalt 500 besök' },
+    'visits_1000': { emoji: '🚀', name: 'Tusenlapp', description: 'Totalt 1000 besök' },
+    'visits_5000': { emoji: '⚡', name: 'Legendarisk', description: 'Totalt 5000 besök' },
+
+    // Anniversary badges
+    'newbie': { emoji: '🌱', name: 'Nykomling', description: 'Ny medlem' },
+    'anniversary_1y': { emoji: '🥉', name: 'Brons-Bastare', description: 'Medlem i 1 år' },
+    'anniversary_5y': { emoji: '🥈', name: 'Silver-Veteran', description: 'Medlem i 5 år' },
+    'anniversary_10y': { emoji: '🥇', name: 'Guld-Legend', description: 'Medlem i 10 år' },
+    'anniversary_15y': { emoji: '💎', name: 'Diamant-Pionjär', description: 'Medlem i 15 år' },
+    'anniversary_20y': { emoji: '👑', name: 'Platina-Ikon', description: 'Medlem i 20 år' },
+
+    // Challenge badges
+    'weekly_warrior': { emoji: '⚔️', name: 'Vecko-Warrior', description: 'Genomfört en 7-dagars streak' },
+    'monthly_marathon': { emoji: '🏃', name: 'Månads-Marathon', description: 'Genomfört en 28-dagars streak' },
+  };
+
+  return badgeInfo[achievementType] || {
+    emoji: '🏅',
+    name: achievementType.replace(/_/g, ' '),
+    description: 'Specialmedalj'
+  };
+};
 
 export default function MemberDetail() {
   const { id } = useParams<{ id: string }>();
@@ -449,7 +496,8 @@ export default function MemberDetail() {
   }
 
   return (
-    <div className="space-y-6">
+    <TooltipProvider>
+      <div className="space-y-6">
       {/* Quick Win 1 & 3: Enhanced header with SMS button and access icons */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={handleBack}>
@@ -592,6 +640,43 @@ export default function MemberDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Achievement Badges */}
+      {member.badges && member.badges.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              Utmärkelser
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {member.badges.map((badge: any) => {
+                const badgeInfo = getBadgeInfo(badge.achievement_type);
+                return (
+                  <Tooltip key={badge.achievement_type} delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <Badge variant="secondary" className="cursor-help px-2 py-1">
+                        <span className="text-lg">{badgeInfo.emoji}</span>
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{badgeInfo.emoji}</span>
+                        <div>
+                          <div className="font-semibold">{badgeInfo.name}</div>
+                          <div className="text-xs text-muted-foreground">{badgeInfo.description}</div>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Related Members */}
       <RelatedMembers memberId={id!} />
@@ -1047,6 +1132,7 @@ export default function MemberDetail() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
