@@ -181,22 +181,30 @@ export default function MemberDetail() {
 
     setLoading(true);
 
-    // Fetch fresh member data directly from members table
-    const { data: memberData } = await supabase
-      .from('members')
-      .select('*')
-      .eq('id', id)
-      .single();
+    // Fetch member data and badges in parallel
+    const [memberResult, badgesResult] = await Promise.all([
+      supabase
+        .from('members')
+        .select('*')
+        .eq('id', id)
+        .single(),
+      supabase
+        .from('member_achievements')
+        .select('achievement_type, achievement_data, earned_at')
+        .eq('user_id', id)
+        .eq('is_active', true)
+    ]);
 
-    if (!memberData) {
+    if (!memberResult.data) {
       setLoading(false);
       return;
     }
 
-    // Add full_name for compatibility
+    // Add full_name and badges for compatibility
     const memberWithFullName = {
-      ...memberData,
-      full_name: `${memberData.first_name} ${memberData.last_name || ''}`
+      ...memberResult.data,
+      full_name: `${memberResult.data.first_name} ${memberResult.data.last_name || ''}`,
+      badges: badgesResult.data || []
     } as Member;
 
     setMember(memberWithFullName);
