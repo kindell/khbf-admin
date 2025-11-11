@@ -37,4 +37,7 @@ export interface Member {
   last_annual_fee_date: string | null;
   last_entrance_fee_date: string | null;
   fortnox_customer_since: string | null;
+  // Gamification
+  badges?: Array<{ user_id: string; achievement_type: string; earned_at: string; is_dynamic: boolean }>;
+  related_members?: string[];
 }

@@ -145,24 +145,7 @@ function App() {
 
   // Helper: Fetch all visits with pagination
   async function fetchAllVisits(thirtyDaysAgo: Date) {
-    // Collect all member user IDs first for targeted query
-    const { data: membersData } = await supabase
-      .from('members')
-      .select('aptus_user_id, parakey_user_id')
-      .neq('is_system_account', true);
-
-    const allUserIds = new Set<string>();
-    membersData?.forEach(m => {
-      if (m.aptus_user_id) allUserIds.add(m.aptus_user_id);
-      if (m.parakey_user_id) allUserIds.add(m.parakey_user_id);
-    });
-
-    if (allUserIds.size === 0) {
-      return { recent: [], all: [] };
-    }
-
-    const userIdArray = Array.from(allUserIds);
-
+    // Fetch visits directly by member_id (more reliable than userid filtering)
     // Fetch recent visits (last 30 days) in parallel with all visits
     const [recentResult, allResult] = await Promise.all([
       // Recent visits (for 30-day stats)
@@ -174,8 +157,8 @@ function App() {
         while (true) {
           const { data } = await supabase
             .from('visits')
-            .select('userid')
-            .in('userid', userIdArray)
+            .select('member_id')
+            .not('member_id', 'is', null)
             .gte('eventtime', thirtyDaysAgo.toISOString())
             .range(from, from + pageSize - 1);
 
@@ -196,8 +179,8 @@ function App() {
         while (true) {
           const { data } = await supabase
             .from('visits')
-            .select('userid, eventtime')
-            .in('userid', userIdArray)
+            .select('member_id, eventtime')
+            .not('member_id', 'is', null)
             .order('eventtime', { ascending: false })
             .range(from, from + pageSize - 1);
 
@@ -263,19 +246,23 @@ function App() {
       // Process visits
       const { recent: recentVisits, all: allVisits } = visitsResult;
 
-      // Count visits per user for last 30 days
+      // Count visits per member for last 30 days (using member_id, not userid)
       const visitCounts = new Map<string, number>();
       recentVisits.forEach(v => {
-        visitCounts.set(v.userid, (visitCounts.get(v.userid) || 0) + 1);
+        if (v.member_id) {
+          visitCounts.set(v.member_id, (visitCounts.get(v.member_id) || 0) + 1);
+        }
       });
 
-      // Count total visits and find last visit
+      // Count total visits and find last visit (using member_id, not userid)
       const totalVisitsMap = new Map<string, number>();
       const lastVisitMap = new Map<string, string>();
       allVisits.forEach(v => {
-        totalVisitsMap.set(v.userid, (totalVisitsMap.get(v.userid) || 0) + 1);
-        if (!lastVisitMap.has(v.userid)) {
-          lastVisitMap.set(v.userid, v.eventtime);
+        if (v.member_id) {
+          totalVisitsMap.set(v.member_id, (totalVisitsMap.get(v.member_id) || 0) + 1);
+          if (!lastVisitMap.has(v.member_id)) {
+            lastVisitMap.set(v.member_id, v.eventtime);
+          }
         }
       });
 
@@ -311,30 +298,17 @@ function App() {
         .map(m => {
           const phoneInfo = phoneMap.get(m.id);
 
-          // Calculate total visits from both aptus and parakey
-          const totalVisits =
-            (m.aptus_user_id ? totalVisitsMap.get(m.aptus_user_id) || 0 : 0) +
-            (m.parakey_user_id ? totalVisitsMap.get(m.parakey_user_id) || 0 : 0);
-
-          // Find most recent visit from either system
-          const aptusLastVisit = m.aptus_user_id ? lastVisitMap.get(m.aptus_user_id) : null;
-          const parakeyLastVisit = m.parakey_user_id ? lastVisitMap.get(m.parakey_user_id) : null;
-          let lastVisit = null;
-
-          if (aptusLastVisit && parakeyLastVisit) {
-            lastVisit = aptusLastVisit > parakeyLastVisit ? aptusLastVisit : parakeyLastVisit;
-          } else {
-            lastVisit = aptusLastVisit || parakeyLastVisit;
-          }
+          // Get visits directly by member_id (more reliable than aptus/parakey IDs)
+          const totalVisits = totalVisitsMap.get(m.id) || 0;
+          const lastVisit = lastVisitMap.get(m.id) || null;
+          const visitsLastMonth = visitCounts.get(m.id) || 0;
 
           return {
             ...m,
             full_name: `${m.first_name} ${m.last_name || ''}`,
             phone: phoneInfo?.phone || null,
             phone_type: phoneInfo?.type || null,
-            visits_last_month:
-              (m.aptus_user_id ? visitCounts.get(m.aptus_user_id) || 0 : 0) +
-              (m.parakey_user_id ? visitCounts.get(m.parakey_user_id) || 0 : 0),
+            visits_last_month: visitsLastMonth,
             visits_total: totalVisits,
             last_visit_at: lastVisit,
             related_members: relationsMap.get(m.id) || [],

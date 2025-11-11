@@ -190,7 +190,7 @@ export default function MemberDetail() {
         .single(),
       supabase
         .from('member_achievements')
-        .select('achievement_type, achievement_data, earned_at')
+        .select('achievement_type, achievement_data, earned_date')
         .eq('user_id', id)
         .eq('is_active', true)
     ]);
@@ -216,17 +216,6 @@ export default function MemberDetail() {
   async function fetchMemberDetails(currentMember: Member) {
     if (!id || !currentMember) return;
 
-    // DEBUG: Check email mappings for this member
-    const { data: debugMappings } = await supabase
-      .from('email_mappings')
-      .select('*')
-      .eq('member_id', id);
-    console.log('=== EMAIL MAPPINGS DEBUG ===');
-    console.log('Member ID:', id);
-    console.log('Member email:', currentMember.email);
-    console.log('Parakey user ID:', currentMember.parakey_user_id);
-    console.log('Email mappings found:', debugMappings);
-
     // Fetch phone numbers
     const { data: phoneData } = await supabase
       .from('phone_mappings')
@@ -249,8 +238,7 @@ export default function MemberDetail() {
           unread_count
         `)
         .eq('phone_number', primaryMobile.phone_number)
-        .eq('has_user_messages', true)
-        .single();
+        .maybeSingle();
 
       if (thread) {
         setSmsThreadId(thread.id);

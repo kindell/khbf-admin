@@ -11,6 +11,7 @@ import { getMemberCategory, getCategoryBadgeVariant, getActivityStatus, getActiv
 import { MemberRow } from './components/ios/MemberRow';
 import { SectionHeader } from './components/ios/SectionHeader';
 import { IOSSearchBar } from './components/ios/IOSSearchBar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 
 type SortField = 'customerNumber' | 'name' | 'visits' | 'age' | 'memberYears';
 type SortDirection = 'asc' | 'desc';
@@ -446,46 +447,50 @@ export default function MemberList({
     return badges;
   };
 
-  const getBadgeName = (achievementType: string): string => {
-    const badgeNames: Record<string, string> = {
+  const getBadgeInfo = (achievementType: string): { emoji: string; name: string; description: string } => {
+    const badgeInfo: Record<string, { emoji: string; name: string; description: string }> = {
       // Streak badges
-      'streak_3d': '🔥 Hetluftsälskare',
-      'streak_7d': '⭐ Vecko-Mästare',
-      'streak_14d': '💪 Bastufantast',
-      'streak_30d': '👑 Månadens Bastare',
+      'streak_3d': { emoji: '🔥', name: 'Hetluftsälskare', description: 'Besökt bastun 3 dagar i rad' },
+      'streak_7d': { emoji: '⭐', name: 'Vecko-Mästare', description: 'Besökt bastun 7 dagar i rad' },
+      'streak_14d': { emoji: '💪', name: 'Bastufantast', description: 'Besökt bastun 14 dagar i rad' },
+      'streak_30d': { emoji: '👑', name: 'Månadens Bastare', description: 'Besökt bastun 30 dagar i rad' },
 
       // Frequency badges
-      'monthly_champion': '🥇 Månadens Mästare',
-      'quarterly_champion': '🏆 Kvartals-Champion',
-      'top3_30d': '🥉 Medaljör',
-      'top10_30d': '⭐ Bas-Stjärna',
-      'veteran': '🎖️ Veteran',
+      'monthly_champion': { emoji: '🥇', name: 'Månadens Mästare', description: 'Flest besök senaste månaden' },
+      'quarterly_champion': { emoji: '🏆', name: 'Kvartals-Champion', description: 'Flest besök senaste kvartalet' },
+      'top3_30d': { emoji: '🥉', name: 'Medaljör', description: 'Topp 3 mest aktiva senaste månaden' },
+      'top10_30d': { emoji: '⭐', name: 'Bas-Stjärna', description: 'Topp 10 mest aktiva senaste månaden' },
+      'veteran': { emoji: '🎖️', name: 'Veteran', description: 'Medlem i över 10 år' },
 
       // Time-based badges
-      'morning_bird': '🌅 Morgonpigg',
-      'evening_bastare': '🌆 Kvällsbastare',
-      'night_owl': '🦉 Nattuggla',
+      'morning_bird': { emoji: '🌅', name: 'Morgonpigg', description: 'Flest besök 06-10 på morgonen' },
+      'evening_bastare': { emoji: '🌆', name: 'Kvällsbastare', description: 'Flest besök 17-21 på kvällen' },
+      'night_owl': { emoji: '🦉', name: 'Nattuggla', description: 'Flest besök 21-01 på natten' },
 
       // Milestone badges
-      'visits_100': '💯 Hundralapp',
-      'visits_500': '🎯 Femhundralapp',
-      'visits_1000': '🚀 Tusenlapp',
-      'visits_5000': '⚡ Legendarisk',
+      'visits_100': { emoji: '💯', name: 'Hundralapp', description: 'Totalt 100 besök' },
+      'visits_500': { emoji: '🎯', name: 'Femhundralapp', description: 'Totalt 500 besök' },
+      'visits_1000': { emoji: '🚀', name: 'Tusenlapp', description: 'Totalt 1000 besök' },
+      'visits_5000': { emoji: '⚡', name: 'Legendarisk', description: 'Totalt 5000 besök' },
 
       // Anniversary badges
-      'newbie': '🌱 Nykomling',
-      'anniversary_1y': '🥉 Brons-Bastare',
-      'anniversary_5y': '🥈 Silver-Veteran',
-      'anniversary_10y': '🥇 Guld-Legend',
-      'anniversary_15y': '💎 Diamant-Pionjär',
-      'anniversary_20y': '👑 Platina-Ikon',
+      'newbie': { emoji: '🌱', name: 'Nykomling', description: 'Ny medlem' },
+      'anniversary_1y': { emoji: '🥉', name: 'Brons-Bastare', description: 'Medlem i 1 år' },
+      'anniversary_5y': { emoji: '🥈', name: 'Silver-Veteran', description: 'Medlem i 5 år' },
+      'anniversary_10y': { emoji: '🥇', name: 'Guld-Legend', description: 'Medlem i 10 år' },
+      'anniversary_15y': { emoji: '💎', name: 'Diamant-Pionjär', description: 'Medlem i 15 år' },
+      'anniversary_20y': { emoji: '👑', name: 'Platina-Ikon', description: 'Medlem i 20 år' },
 
       // Challenge badges
-      'weekly_warrior': '⚔️ Vecko-Warrior',
-      'monthly_marathon': '🏃 Månads-Marathon',
+      'weekly_warrior': { emoji: '⚔️', name: 'Vecko-Warrior', description: 'Genomfört en 7-dagars streak' },
+      'monthly_marathon': { emoji: '🏃', name: 'Månads-Marathon', description: 'Genomfört en 28-dagars streak' },
     };
 
-    return badgeNames[achievementType] || achievementType.replace(/_/g, ' ');
+    return badgeInfo[achievementType] || {
+      emoji: '🏅',
+      name: achievementType.replace(/_/g, ' '),
+      description: 'Specialmedalj'
+    };
   };
 
   const getDisplayCategory = (member: Member & { category: MemberCategory }) => {
@@ -605,7 +610,8 @@ export default function MemberList({
           <CardTitle>{getPageTitle()}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          <TooltipProvider>
+            <Table>
             <TableHeader>
               <TableRow>
                 {selectedCategories.size === 1 && selectedCategories.has('KÖANDE') && (
@@ -688,18 +694,29 @@ export default function MemberList({
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {member.badges && member.badges.length > 0 ? (
-                        member.badges.slice(0, 3).map((badge: any) => (
-                          <Badge key={badge.achievement_type} variant="secondary" className="text-xs">
-                            {getBadgeName(badge.achievement_type)}
-                          </Badge>
-                        ))
+                        member.badges.map((badge: any) => {
+                          const badgeInfo = getBadgeInfo(badge.achievement_type);
+                          return (
+                            <Tooltip key={badge.achievement_type} delayDuration={200}>
+                              <TooltipTrigger asChild>
+                                <Badge variant="secondary" className="cursor-help px-2 py-1">
+                                  <span className="text-lg">{badgeInfo.emoji}</span>
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">{badgeInfo.emoji}</span>
+                                  <div>
+                                    <div className="font-semibold">{badgeInfo.name}</div>
+                                    <div className="text-xs text-muted-foreground">{badgeInfo.description}</div>
+                                  </div>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                      {member.badges && member.badges.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{member.badges.length - 3}
-                        </Badge>
                       )}
                     </div>
                   </TableCell>
@@ -728,7 +745,8 @@ export default function MemberList({
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </TooltipProvider>
 
           {sortedMembers.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
