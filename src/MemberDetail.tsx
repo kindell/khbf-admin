@@ -382,14 +382,13 @@ export default function MemberDetail() {
         });
       }
 
-      // Sort by most used, then by card number
-      rfidCardsInfo.sort((a, b) => {
-        if (b.total_uses !== a.total_uses) {
-          return b.total_uses - a.total_uses;
-        }
-        return a.card_number.localeCompare(b.card_number);
-      });
-    }
+    // Sort by most used, then by card number
+    rfidCardsInfo.sort((a, b) => {
+      if (b.total_uses !== a.total_uses) {
+        return b.total_uses - a.total_uses;
+      }
+      return a.card_number.localeCompare(b.card_number);
+    });
 
     // Check for Parakey access using parakey_user_id
     let parakeyEmail = null;
