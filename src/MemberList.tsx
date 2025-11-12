@@ -6,12 +6,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Input } from './components/ui/input';
 import { Badge } from './components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { Search, Smartphone, CreditCard, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Button } from './components/ui/button';
+import { Search, Smartphone, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, X, Trophy, ChevronDown } from 'lucide-react';
 import { getMemberCategory, getCategoryBadgeVariant, getActivityStatus, getActivityBadgeVariant, type MemberCategory, type ActivityStatus } from './lib/member-categories';
 import { MemberRow } from './components/ios/MemberRow';
 import { SectionHeader } from './components/ios/SectionHeader';
 import { IOSSearchBar } from './components/ios/IOSSearchBar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
+import { getBadgeInfo, getBadgeFullInfo, getCategoryDisplayName, getBadgeSortValue } from './lib/badge-info';
 
 type SortField = 'customerNumber' | 'name' | 'visits' | 'age' | 'memberYears';
 type SortDirection = 'asc' | 'desc';
@@ -67,20 +70,9 @@ const calculateMemberYears = (member: Member, isQueueView: boolean = false): num
       || member.first_queue_fee_date;
   } else {
     // For regular members: Find the earliest date from available sources to determine membership start.
-    // We use fortnox_customer_since and last_entrance_fee_date as these indicate when membership began.
-    // This matches the logic used in the AI for answering "hur länge har jag varit medlem?"
-    const possibleDates = [
-      member.fortnox_customer_since,
-      member.last_entrance_fee_date
-    ].filter(date => date !== null);
-
-    if (possibleDates.length > 0) {
-      // Find the earliest (oldest) date
-      const dates = possibleDates.map(d => new Date(d));
-      relevantDate = new Date(Math.min(...dates.map(d => d.getTime()))).toISOString();
-    } else {
-      relevantDate = null;
-    }
+    // Priority: fortnox_customer_since (ideal) > first_visit_at (first entrance fee payment, fallback)
+    // This matches the logic used in the badge system
+    relevantDate = member.fortnox_customer_since || member.first_visit_at;
   }
 
   if (!relevantDate) return null;
@@ -158,6 +150,21 @@ export default function MemberList({
     return (searchParams.get('dir') as SortDirection) || 'desc';
   });
 
+  const [selectedBadges, setSelectedBadges] = useState<Set<string>>(() => {
+    const badgesParam = searchParams.get('badges');
+    if (badgesParam) {
+      const badges = badgesParam.split(',');
+      return new Set(badges);
+    }
+    return new Set();
+  });
+
+  // Badge filter collapse state - auto-expand when any badge is selected
+  const [badgeFiltersOpen, setBadgeFiltersOpen] = useState(() => {
+    const badgesParam = searchParams.get('badges');
+    return badgesParam !== null && badgesParam.length > 0;
+  });
+
   // Initialize search from URL on mount
   useEffect(() => {
     const searchParam = searchParams.get('search');
@@ -184,6 +191,13 @@ export default function MemberList({
       params.delete('categories');
     }
 
+    // Badges: only set if some selected
+    if (selectedBadges.size > 0) {
+      params.set('badges', Array.from(selectedBadges).join(','));
+    } else {
+      params.delete('badges');
+    }
+
     if (search) {
       params.set('search', search);
     } else {
@@ -194,7 +208,7 @@ export default function MemberList({
     params.set('dir', sortDirection);
 
     setSearchParams(params, { replace: true });
-  }, [selectedActivityStatuses, selectedCategories, search, sortField, sortDirection]);
+  }, [selectedActivityStatuses, selectedCategories, selectedBadges, search, sortField, sortDirection]);
 
   // Calculate category and activity status for each member
   const membersWithCategory = members.map(m => ({
@@ -209,16 +223,100 @@ export default function MemberList({
     { value: 'inactive', label: 'Inaktiv', count: 0 },
   ];
 
-  // Calculate counts for categories (filtered by selected activity statuses)
-  const categories: { value: MemberCategory; label: string; count: number }[] = [
-    { value: 'MEDLEM', label: 'Medlem', count: 0 },
-    { value: 'MEDBADARE', label: 'Medbadare', count: 0 },
-    { value: 'KÖANDE', label: 'Köande', count: 0 },
-    { value: 'INAKTIV', label: 'Inaktiv', count: 0 },
-  ];
+  // Step 1: Apply activity status filter first
+  const activityFilteredMembers = membersWithCategory.filter(m => {
+    if (selectedActivityStatuses.size === 0 || selectedActivityStatuses.size === 2) {
+      return true; // All
+    }
+    return selectedActivityStatuses.has(m.activityStatus);
+  });
 
-  // Count activity statuses (filtered by selected categories)
-  membersWithCategory.forEach(m => {
+  // Step 2: Apply category filter
+  const categoryFilteredMembers = activityFilteredMembers.filter(m => {
+    if (selectedCategories.size === 0 || selectedCategories.size === 4) {
+      return true; // All
+    }
+    return selectedCategories.has(m.category);
+  });
+
+  // Step 3: Apply badge filter (AND logic: member must have ALL selected badges)
+  const badgeFilteredMembers = categoryFilteredMembers.filter(m => {
+    if (selectedBadges.size === 0) return true; // No badge filter
+
+    // Member must have ALL selected badges
+    return Array.from(selectedBadges).every(badgeType =>
+      m.badges?.some(b => b.achievement_type === badgeType && b.is_active)
+    );
+  });
+
+  // Step 4: Calculate badge counts FROM BADGE-FILTERED MEMBERS
+  // This shows how many members with selected badges ALSO have each other badge
+  const badgeCounts: Map<string, number> = new Map();
+  badgeFilteredMembers.forEach(m => {
+    m.badges?.forEach(badge => {
+      if (badge.is_active) {
+        badgeCounts.set(badge.achievement_type, (badgeCounts.get(badge.achievement_type) || 0) + 1);
+      }
+    });
+  });
+
+  // Sort badges by count (most popular first) and filter out badges with 0 count
+  // Keep selected badges at the top of the list
+  const availableBadges = Array.from(badgeCounts.entries())
+    .filter(([, count]) => count > 0)
+    .map(([type, count]) => ({
+      type,
+      count,
+      info: getBadgeInfo(type),
+      fullInfo: getBadgeFullInfo(type),
+      isSelected: selectedBadges.has(type)
+    }))
+    .sort((a, b) => {
+      // Selected badges first
+      if (a.isSelected && !b.isSelected) return -1;
+      if (!a.isSelected && b.isSelected) return 1;
+      // Then by count
+      return b.count - a.count;
+    });
+
+  // Sort badges by category (frequency → streak → time → milestone → anniversary → challenge)
+  const categoryOrder: Record<string, number> = {
+    'frequency': 1,
+    'streak': 2,
+    'time': 3,
+    'milestone': 4,
+    'anniversary': 5,
+    'challenge': 6
+  };
+
+  const sortedBadges = [...availableBadges].sort((a, b) => {
+    // Selected badges first
+    if (a.isSelected && !b.isSelected) return -1;
+    if (!a.isSelected && b.isSelected) return 1;
+
+    // Then by category order
+    const catA = categoryOrder[a.fullInfo?.category || 'other'] || 999;
+    const catB = categoryOrder[b.fullInfo?.category || 'other'] || 999;
+    if (catA !== catB) return catA - catB;
+
+    // Finally by descending scale/prestige (higher values first)
+    const valueA = getBadgeSortValue(a.type);
+    const valueB = getBadgeSortValue(b.type);
+    return valueB - valueA;
+  });
+
+  // Group badges by category for rendering
+  const badgesByCategory = sortedBadges.reduce((acc, badge) => {
+    const category = badge.fullInfo?.category || 'other';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(badge);
+    return acc;
+  }, {} as Record<string, typeof sortedBadges>);
+
+  // Step 5: Count activity statuses FROM BADGE-FILTERED MEMBERS
+  badgeFilteredMembers.forEach(m => {
     // Only count if member matches selected categories (or all selected)
     const matchesCategory = selectedCategories.size === 0 || selectedCategories.size === 4 || selectedCategories.has(m.category);
 
@@ -228,8 +326,15 @@ export default function MemberList({
     }
   });
 
-  // Count categories (filtered by selected activity statuses)
-  membersWithCategory.forEach(m => {
+  // Step 6: Count categories FROM BADGE-FILTERED MEMBERS
+  const categories: { value: MemberCategory; label: string; count: number }[] = [
+    { value: 'MEDLEM', label: 'Medlem', count: 0 },
+    { value: 'MEDBADARE', label: 'Medbadare', count: 0 },
+    { value: 'KÖANDE', label: 'Köande', count: 0 },
+    { value: 'INAKTIV', label: 'Inaktiv', count: 0 },
+  ];
+
+  badgeFilteredMembers.forEach(m => {
     // Only count if member matches selected activity statuses (or all selected)
     const matchesActivity = selectedActivityStatuses.size === 0 || selectedActivityStatuses.size === 2 || selectedActivityStatuses.has(m.activityStatus);
 
@@ -259,27 +364,30 @@ export default function MemberList({
     setSelectedCategories(newSelected);
   };
 
+  const toggleBadge = (badgeType: string) => {
+    const newSelected = new Set(selectedBadges);
+    if (newSelected.has(badgeType)) {
+      newSelected.delete(badgeType);
+    } else {
+      newSelected.add(badgeType);
+      // Auto-expand when selecting a badge
+      setBadgeFiltersOpen(true);
+    }
+    setSelectedBadges(newSelected);
+  };
+
+  const clearAllFilters = () => {
+    setSelectedActivityStatuses(new Set());
+    setSelectedCategories(new Set(['MEDLEM', 'MEDBADARE']));
+    setSelectedBadges(new Set());
+    setSearch('');
+  };
+
   // Check if we're showing only queue members
   const isQueueView = selectedCategories.size === 1 && selectedCategories.has('KÖANDE');
 
-  // Apply activity status filter (both/none = all)
-  const activityFilteredMembers = membersWithCategory.filter(m => {
-    if (selectedActivityStatuses.size === 0 || selectedActivityStatuses.size === 2) {
-      return true; // All
-    }
-    return selectedActivityStatuses.has(m.activityStatus);
-  });
-
-  // Apply category filter (all/none = all)
-  const viewFilteredMembers = activityFilteredMembers.filter(m => {
-    if (selectedCategories.size === 0 || selectedCategories.size === 4) {
-      return true; // All
-    }
-    return selectedCategories.has(m.category);
-  });
-
   // Apply search filter
-  const filteredMembers = viewFilteredMembers.filter(m => {
+  const filteredMembers = badgeFilteredMembers.filter(m => {
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
@@ -447,52 +555,6 @@ export default function MemberList({
     return badges;
   };
 
-  const getBadgeInfo = (achievementType: string): { emoji: string; name: string; description: string } => {
-    const badgeInfo: Record<string, { emoji: string; name: string; description: string }> = {
-      // Streak badges
-      'streak_3d': { emoji: '🔥', name: 'Hetluftsälskare', description: 'Besökt bastun 3 dagar i rad' },
-      'streak_7d': { emoji: '⭐', name: 'Vecko-Mästare', description: 'Besökt bastun 7 dagar i rad' },
-      'streak_14d': { emoji: '💪', name: 'Bastufantast', description: 'Besökt bastun 14 dagar i rad' },
-      'streak_30d': { emoji: '👑', name: 'Månadens Bastare', description: 'Besökt bastun 30 dagar i rad' },
-
-      // Frequency badges
-      'monthly_champion': { emoji: '🥇', name: 'Månadens Mästare', description: 'Flest besök senaste månaden' },
-      'quarterly_champion': { emoji: '🏆', name: 'Kvartals-Champion', description: 'Flest besök senaste kvartalet' },
-      'top3_30d': { emoji: '🥉', name: 'Medaljör', description: 'Topp 3 mest aktiva senaste månaden' },
-      'top10_30d': { emoji: '⭐', name: 'Bas-Stjärna', description: 'Topp 10 mest aktiva senaste månaden' },
-      'veteran': { emoji: '🎖️', name: 'Veteran', description: 'Medlem i över 10 år' },
-
-      // Time-based badges
-      'morning_bird': { emoji: '🌅', name: 'Morgonpigg', description: 'Flest besök 06-10 på morgonen' },
-      'evening_bastare': { emoji: '🌆', name: 'Kvällsbastare', description: 'Flest besök 17-21 på kvällen' },
-      'night_owl': { emoji: '🦉', name: 'Nattuggla', description: 'Flest besök 21-01 på natten' },
-
-      // Milestone badges
-      'visits_100': { emoji: '💯', name: 'Hundralapp', description: 'Totalt 100 besök' },
-      'visits_500': { emoji: '🎯', name: 'Femhundralapp', description: 'Totalt 500 besök' },
-      'visits_1000': { emoji: '🚀', name: 'Tusenlapp', description: 'Totalt 1000 besök' },
-      'visits_5000': { emoji: '⚡', name: 'Legendarisk', description: 'Totalt 5000 besök' },
-
-      // Anniversary badges
-      'newbie': { emoji: '🌱', name: 'Nykomling', description: 'Ny medlem' },
-      'anniversary_1y': { emoji: '🥉', name: 'Brons-Bastare', description: 'Medlem i 1 år' },
-      'anniversary_5y': { emoji: '🥈', name: 'Silver-Veteran', description: 'Medlem i 5 år' },
-      'anniversary_10y': { emoji: '🥇', name: 'Guld-Legend', description: 'Medlem i 10 år' },
-      'anniversary_15y': { emoji: '💎', name: 'Diamant-Pionjär', description: 'Medlem i 15 år' },
-      'anniversary_20y': { emoji: '👑', name: 'Platina-Ikon', description: 'Medlem i 20 år' },
-
-      // Challenge badges
-      'weekly_warrior': { emoji: '⚔️', name: 'Vecko-Warrior', description: 'Genomfört en 7-dagars streak' },
-      'monthly_marathon': { emoji: '🏃', name: 'Månads-Marathon', description: 'Genomfört en 28-dagars streak' },
-    };
-
-    return badgeInfo[achievementType] || {
-      emoji: '🏅',
-      name: achievementType.replace(/_/g, ' '),
-      description: 'Specialmedalj'
-    };
-  };
-
   const getDisplayCategory = (member: Member & { category: MemberCategory }) => {
     return member.category;
   };
@@ -560,6 +622,85 @@ export default function MemberList({
           );
         })}
       </div>
+
+      {/* Badge filters */}
+      {availableBadges.length > 0 && (
+        <Collapsible
+          open={badgeFiltersOpen}
+          onOpenChange={setBadgeFiltersOpen}
+          className="px-4 lg:px-0 space-y-2"
+        >
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Trophy className="h-4 w-4" />
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-6 text-xs p-0 hover:bg-transparent">
+                <span>Filtrera på utmärkelser</span>
+                <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${badgeFiltersOpen ? 'rotate-180' : ''}`} />
+              </Button>
+            </CollapsibleTrigger>
+            {selectedBadges.size > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="h-6 text-xs"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Rensa alla filter
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/members/prizes')}
+              className="h-6 text-xs ml-auto"
+            >
+              <Trophy className="h-3 w-3 mr-1" />
+              Visa priser & utmärkelser
+            </Button>
+          </div>
+
+          <CollapsibleContent className="space-y-2">
+            {/* Render badges grouped by category in specific order */}
+            {['frequency', 'streak', 'time', 'milestone', 'anniversary', 'challenge'].map(category => {
+              const badges = badgesByCategory[category];
+              if (!badges || badges.length === 0) return null;
+
+              return (
+                <div key={category} className="flex items-start gap-2">
+                  <div className="text-xs font-medium text-muted-foreground whitespace-nowrap pt-1.5">
+                    {getCategoryDisplayName(category as any)}:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {badges.map(({ type, count, info, isSelected }) => (
+                      <TooltipProvider key={type}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant={isSelected ? 'default' : 'outline'}
+                              className={`cursor-pointer transition-all ${
+                                isSelected ? 'ring-2 ring-offset-1' : 'opacity-60 hover:opacity-100'
+                              }`}
+                              onClick={() => toggleBadge(type)}
+                            >
+                              {info.emoji} {info.name} ({count})
+                              {isSelected && <X className="h-3 w-3 ml-1 inline" />}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-semibold">{info.emoji} {info.name}</p>
+                            <p className="text-xs text-muted-foreground">{info.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       {/* iOS-style Search (mobile) */}
       <div className="lg:hidden">
