@@ -25,6 +25,8 @@ const GroupDetailView = lazy(() => import('./components/groups/GroupDetailView')
 const TemplatesOverview = lazy(() => import('./pages/TemplatesOverview'));
 const SMSLogs = lazy(() => import('./pages/SMSLogs'));
 const AIChat = lazy(() => import('./pages/AIChat'));
+const CleaningOverview = lazy(() => import('./pages/CleaningOverview').then(module => ({ default: module.CleaningOverview })));
+const PrizesOverview = lazy(() => import('./pages/PrizesOverview').then(module => ({ default: module.PrizesOverview })));
 
 export type Period = 'week' | 'month' | '3months';
 
@@ -146,46 +148,64 @@ function App() {
   // Helper: Fetch all visits with pagination
   async function fetchAllVisits(thirtyDaysAgo: Date) {
     // Fetch visits directly by member_id (more reliable than userid filtering)
-    // Fetch recent visits (last 30 days) in parallel with all visits
+    // Use visit ID to deduplicate and ensure accurate counts
     const [recentResult, allResult] = await Promise.all([
-      // Recent visits (for 30-day stats)
+      // Recent visits (for 30-day stats) - with ID for deduplication
       (async () => {
-        let visits: any[] = [];
+        const visitIds = new Set<string>();
+        const visits: any[] = [];
         let from = 0;
         const pageSize = 1000;
 
         while (true) {
           const { data } = await supabase
             .from('visits')
-            .select('member_id')
+            .select('id, member_id')
             .not('member_id', 'is', null)
             .gte('eventtime', thirtyDaysAgo.toISOString())
             .range(from, from + pageSize - 1);
 
           if (!data || data.length === 0) break;
-          visits = visits.concat(data);
+
+          // Deduplicate by visit ID to prevent double-counting
+          for (const visit of data) {
+            if (!visitIds.has(visit.id)) {
+              visitIds.add(visit.id);
+              visits.push(visit);
+            }
+          }
+
           if (data.length < pageSize) break;
           from += pageSize;
         }
         return visits;
       })(),
 
-      // All visits (for total count and last visit)
+      // All visits (for total count and last visit) - with ID for deduplication
       (async () => {
-        let visits: any[] = [];
+        const visitIds = new Set<string>();
+        const visits: any[] = [];
         let from = 0;
         const pageSize = 1000;
 
         while (true) {
           const { data } = await supabase
             .from('visits')
-            .select('member_id, eventtime')
+            .select('id, member_id, eventtime')
             .not('member_id', 'is', null)
             .order('eventtime', { ascending: false })
             .range(from, from + pageSize - 1);
 
           if (!data || data.length === 0) break;
-          visits = visits.concat(data);
+
+          // Deduplicate by visit ID to prevent double-counting
+          for (const visit of data) {
+            if (!visitIds.has(visit.id)) {
+              visitIds.add(visit.id);
+              visits.push(visit);
+            }
+          }
+
           if (data.length < pageSize) break;
           from += pageSize;
         }
@@ -236,7 +256,7 @@ function App() {
         // 5. Fetch active badges
         supabase
           .from('member_achievements')
-          .select('user_id, achievement_type, achievement_data')
+          .select('user_id, achievement_type, achievement_data, is_active')
           .eq('is_active', true)
       ]);
 
@@ -430,6 +450,10 @@ function App() {
             }
           />
           <Route
+            path="/members/prizes"
+            element={<PrizesOverview />}
+          />
+          <Route
             path="/members/:id"
             element={<MemberDetail />}
           />
@@ -445,6 +469,10 @@ function App() {
           <Route
             path="/aptus"
             element={<AptusOverview />}
+          />
+          <Route
+            path="/cleaning"
+            element={<CleaningOverview />}
           />
           <Route
             path="/messages"
