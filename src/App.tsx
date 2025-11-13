@@ -163,6 +163,7 @@ function App() {
             .select('id, member_id')
             .not('member_id', 'is', null)
             .gte('eventtime', thirtyDaysAgo.toISOString())
+            .order('id')
             .range(from, from + pageSize - 1);
 
           if (!data || data.length === 0) break;
