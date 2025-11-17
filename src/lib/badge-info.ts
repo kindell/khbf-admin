@@ -134,112 +134,112 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   'morning_bird_gents': {
     emoji: '🌅',
     name: 'Kallbadarna Herr',
-    description: 'Flest besök 05-08 på morgonen på herrsidan',
+    description: 'Topp 5 besökare 05-08 på morgonen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'foermiddagspasset_gents': {
     emoji: '🏋️',
     name: 'Förmiddagspasset Herr',
-    description: 'Flest besök 08-11 på förmiddagen på herrsidan',
+    description: 'Topp 5 besökare 08-11 på förmiddagen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'lunch_badare_gents': {
     emoji: '🍔',
     name: 'Lunchgänget Herr',
-    description: 'Flest besök 11-14 på lunchen på herrsidan',
+    description: 'Topp 5 besökare 11-14 på lunchen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'eftermiddagsklubben_gents': {
     emoji: '🍻',
     name: 'Eftermiddagsklubben Herr',
-    description: 'Flest besök 14-18 på eftermiddagen på herrsidan',
+    description: 'Topp 5 besökare 14-18 på eftermiddagen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'evening_bastare_gents': {
     emoji: '🌆',
     name: 'Kvällsnjutarna Herr',
-    description: 'Flest besök 18-20 på kvällen på herrsidan',
+    description: 'Topp 5 besökare 18-20 på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'night_owl_gents': {
     emoji: '🦉',
     name: 'Nattugglorna Herr',
-    description: 'Flest besök 20-22 sent på kvällen på herrsidan',
+    description: 'Topp 5 besökare 20-22 sent på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
 
   // Time-based badges LADIES (dynamic)
   'morning_bird_ladies': {
     emoji: '🌅',
     name: 'Kallbadarna Dam',
-    description: 'Flest besök 05-08 på morgonen på damsidan',
+    description: 'Topp 5 besökare 05-08 på morgonen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'foermiddagspasset_ladies': {
     emoji: '🏋️',
     name: 'Förmiddagspasset Dam',
-    description: 'Flest besök 08-11 på förmiddagen på damsidan',
+    description: 'Topp 5 besökare 08-11 på förmiddagen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'lunch_badare_ladies': {
     emoji: '🍔',
     name: 'Lunchgänget Dam',
-    description: 'Flest besök 11-14 på lunchen på damsidan',
+    description: 'Topp 5 besökare 11-14 på lunchen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'eftermiddagsklubben_ladies': {
     emoji: '🍻',
     name: 'Eftermiddagsklubben Dam',
-    description: 'Flest besök 14-18 på eftermiddagen på damsidan',
+    description: 'Topp 5 besökare 14-18 på eftermiddagen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'evening_bastare_ladies': {
     emoji: '🌆',
     name: 'Kvällsnjutarna Dam',
-    description: 'Flest besök 18-20 på kvällen på damsidan',
+    description: 'Topp 5 besökare 18-20 på kvällen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
   'night_owl_ladies': {
     emoji: '🦉',
     name: 'Nattugglorna Dam',
-    description: 'Flest besök 20-22 sent på kvällen på damsidan',
+    description: 'Topp 5 besökare 20-22 sent på kvällen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
-    rank: 1
+    maxRank: 5
   },
 
   // Milestone badges GENTS (permanent)
