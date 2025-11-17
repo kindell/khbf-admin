@@ -11,6 +11,7 @@ import { RelatedMembers } from './components/RelatedMembers';
 import { getMemberCategory, getCategoryBadgeVariant } from './lib/member-categories';
 import { MemberDetailSkeleton } from './components/MemberDetailSkeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
+import { getBadgeInfo, getBadgeSideColor } from './lib/badge-info';
 
 interface PhoneMapping {
   phone_number: string;
@@ -83,52 +84,6 @@ interface ThreadData {
   unread_count: number;
 }
 
-const getBadgeInfo = (achievementType: string): { emoji: string; name: string; description: string } => {
-  const badgeInfo: Record<string, { emoji: string; name: string; description: string }> = {
-    // Streak badges
-    'streak_3d': { emoji: '🔥', name: 'Hetluftsälskare', description: 'Besökt bastun 3 dagar i rad' },
-    'streak_7d': { emoji: '⭐', name: 'Vecko-Mästare', description: 'Besökt bastun 7 dagar i rad' },
-    'streak_14d': { emoji: '💪', name: 'Bastufantast', description: 'Besökt bastun 14 dagar i rad' },
-    'streak_30d': { emoji: '👑', name: 'Månadens Bastare', description: 'Besökt bastun 30 dagar i rad' },
-
-    // Frequency badges
-    'monthly_champion': { emoji: '🥇', name: 'Månadens Mästare', description: 'Flest besök senaste månaden' },
-    'quarterly_champion': { emoji: '🏆', name: 'Kvartals-Champion', description: 'Flest besök senaste kvartalet' },
-    'top3_30d': { emoji: '🥉', name: 'Medaljör', description: 'Topp 3 mest aktiva senaste månaden' },
-    'top10_30d': { emoji: '⭐', name: 'Bas-Stjärna', description: 'Topp 10 mest aktiva senaste månaden' },
-    'veteran': { emoji: '🎖️', name: 'Veteran', description: 'Medlem i över 10 år' },
-
-    // Time-based badges
-    'morning_bird': { emoji: '🌅', name: 'Morgonpigg', description: 'Flest besök 06-10 på morgonen' },
-    'evening_bastare': { emoji: '🌆', name: 'Kvällsbastare', description: 'Flest besök 17-21 på kvällen' },
-    'night_owl': { emoji: '🦉', name: 'Nattuggla', description: 'Flest besök 21-01 på natten' },
-
-    // Milestone badges
-    'visits_100': { emoji: '💯', name: 'Hundralapp', description: 'Totalt 100 besök' },
-    'visits_500': { emoji: '🎯', name: 'Femhundralapp', description: 'Totalt 500 besök' },
-    'visits_1000': { emoji: '🚀', name: 'Tusenlapp', description: 'Totalt 1000 besök' },
-    'visits_5000': { emoji: '⚡', name: 'Legendarisk', description: 'Totalt 5000 besök' },
-
-    // Anniversary badges
-    'newbie': { emoji: '🌱', name: 'Nykomling', description: 'Ny medlem' },
-    'anniversary_1y': { emoji: '🥉', name: 'Brons-Bastare', description: 'Medlem i 1 år' },
-    'anniversary_5y': { emoji: '🥈', name: 'Silver-Veteran', description: 'Medlem i 5 år' },
-    'anniversary_10y': { emoji: '🥇', name: 'Guld-Legend', description: 'Medlem i 10 år' },
-    'anniversary_15y': { emoji: '💎', name: 'Diamant-Pionjär', description: 'Medlem i 15 år' },
-    'anniversary_20y': { emoji: '👑', name: 'Platina-Ikon', description: 'Medlem i 20 år' },
-
-    // Challenge badges
-    'weekly_warrior': { emoji: '⚔️', name: 'Vecko-Warrior', description: 'Genomfört en 7-dagars streak' },
-    'monthly_marathon': { emoji: '🏃', name: 'Månads-Marathon', description: 'Genomfört en 28-dagars streak' },
-  };
-
-  return badgeInfo[achievementType] || {
-    emoji: '🏅',
-    name: achievementType.replace(/_/g, ' '),
-    description: 'Specialmedalj'
-  };
-};
-
 export default function MemberDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -145,6 +100,12 @@ export default function MemberDetail() {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [accessExpanded, setAccessExpanded] = useState(true);
   const [invoicesExpanded, setInvoicesExpanded] = useState(false);
+
+  // Visit counts by period (separate from limited visits array for calendar)
+  const [weekVisitsCount, setWeekVisitsCount] = useState<{ total: number; gents: number; ladies: number }>({ total: 0, gents: 0, ladies: 0 });
+  const [monthVisitsCount, setMonthVisitsCount] = useState<{ total: number; gents: number; ladies: number }>({ total: 0, gents: 0, ladies: 0 });
+  const [quarterVisitsCount, setQuarterVisitsCount] = useState<{ total: number; gents: number; ladies: number }>({ total: 0, gents: 0, ladies: 0 });
+  const [totalVisitsCount, setTotalVisitsCount] = useState<{ total: number; gents: number; ladies: number }>({ total: 0, gents: 0, ladies: 0 });
 
   // Smart back button: use browser history if available, otherwise go to home
   const handleBack = () => {
@@ -293,6 +254,63 @@ export default function MemberDetail() {
       .limit(50);
 
     setVisits(visitData || []);
+
+    // Fetch accurate visit counts for all periods (separate from limited calendar data)
+    const now = Date.now();
+    const periods = [
+      { days: 7, setter: setWeekVisitsCount },
+      { days: 30, setter: setMonthVisitsCount },
+      { days: 90, setter: setQuarterVisitsCount },
+      { days: null, setter: setTotalVisitsCount } // null = all time
+    ];
+
+    for (const period of periods) {
+      const cutoffDate = period.days ? new Date(now - period.days * 24 * 60 * 60 * 1000).toISOString() : null;
+
+      // Total count for period
+      let totalQuery = supabase
+        .from('visits')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', currentMember.id);
+
+      if (cutoffDate) {
+        totalQuery = totalQuery.gte('eventtime', cutoffDate);
+      }
+
+      const { count: totalCount } = await totalQuery;
+
+      // Gents count for period
+      let gentsQuery = supabase
+        .from('visits')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', currentMember.id)
+        .in('department', ['GENTS', 'Herrar']);
+
+      if (cutoffDate) {
+        gentsQuery = gentsQuery.gte('eventtime', cutoffDate);
+      }
+
+      const { count: gentsCount } = await gentsQuery;
+
+      // Ladies count for period
+      let ladiesQuery = supabase
+        .from('visits')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', currentMember.id)
+        .in('department', ['LADIES', 'Damer']);
+
+      if (cutoffDate) {
+        ladiesQuery = ladiesQuery.gte('eventtime', cutoffDate);
+      }
+
+      const { count: ladiesCount } = await ladiesQuery;
+
+      period.setter({
+        total: totalCount || 0,
+        gents: gentsCount || 0,
+        ladies: ladiesCount || 0
+      });
+    }
 
     // Fetch access information with detailed RFID statistics
     const rfidCardsInfo: RFIDCardInfo[] = [];
@@ -633,6 +651,211 @@ export default function MemberDetail() {
         </CardContent>
       </Card>
 
+      {/* Visit Statistics & Activity - Moved up for better visibility */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Besök & Aktivitet
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Visit statistics */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Senaste veckan</p>
+              <p className="text-2xl font-bold">
+                {weekVisitsCount.total}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                  (♂️{weekVisitsCount.gents} ♀️{weekVisitsCount.ladies})
+                </span>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Senaste månaden</p>
+              <p className="text-2xl font-bold">
+                {monthVisitsCount.total}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                  (♂️{monthVisitsCount.gents} ♀️{monthVisitsCount.ladies})
+                </span>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Senaste 3 månaderna</p>
+              <p className="text-2xl font-bold">
+                {quarterVisitsCount.total}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                  (♂️{quarterVisitsCount.gents} ♀️{quarterVisitsCount.ladies})
+                </span>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Samtliga besök</p>
+              <p className="text-2xl font-bold">
+                {totalVisitsCount.total}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                  (♂️{totalVisitsCount.gents} ♀️{totalVisitsCount.ladies})
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* First and last visit dates */}
+          {member.last_visit_at && (
+            <>
+              <Separator />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">Senaste besök</p>
+                  <p className="text-sm">
+                    {new Date(member.last_visit_at).toLocaleDateString('sv-SE', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Europe/Stockholm'
+                    })}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Collapsible calendar */}
+          {!loading && visits.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <Button
+                  variant="ghost"
+                  onClick={() => setCalendarExpanded(!calendarExpanded)}
+                  className="w-full flex items-center justify-between p-4 -mx-4 hover:bg-muted/50"
+                  aria-expanded={calendarExpanded}
+                  aria-controls="visit-calendar"
+                >
+                  <span className="font-semibold">Besökskalender (senaste 4 veckorna)</span>
+                  {calendarExpanded ? (
+                    <ChevronUp className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </Button>
+
+                {calendarExpanded && (
+                  <div id="visit-calendar" className="mt-4 overflow-x-auto" role="region" aria-label="Visit calendar details">
+                    {(() => {
+                      // Group visits by date (Swedish timezone)
+                      const visitsByDate = new Map<string, Visit[]>();
+                      visits.forEach(visit => {
+                        // Convert to Swedish date
+                        const dateStr = new Date(visit.eventtime).toLocaleDateString('sv-SE', {
+                          timeZone: 'Europe/Stockholm',
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit'
+                        });
+                        if (!visitsByDate.has(dateStr)) {
+                          visitsByDate.set(dateStr, []);
+                        }
+                        visitsByDate.get(dateStr)!.push(visit);
+                      });
+
+                      // Generate last 4 weeks (Swedish timezone)
+                      const weeks = [];
+                      const nowInSweden = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Stockholm' }));
+
+                      // Find the most recent Sunday (end of week)
+                      const mostRecentSunday = new Date(nowInSweden);
+                      const dayOfWeek = mostRecentSunday.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                      const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+                      mostRecentSunday.setDate(mostRecentSunday.getDate() + daysToSunday);
+
+                      for (let weekOffset = 3; weekOffset >= 0; weekOffset--) {
+                        const weekDays = [];
+                        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+                          const date = new Date(mostRecentSunday);
+                          // Go back weekOffset weeks, then add dayOffset days (0=Monday, 6=Sunday)
+                          date.setDate(date.getDate() - (weekOffset * 7) - (6 - dayOffset));
+                          const dateKey = date.toLocaleDateString('sv-SE', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit'
+                          });
+                          const dayVisits = visitsByDate.get(dateKey) || [];
+                          weekDays.push({ date, dateKey, visits: dayVisits });
+                        }
+                        weeks.push(weekDays);
+                      }
+
+                      return (
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="p-2 text-left font-medium">Vecka</th>
+                              <th className="p-2 text-left font-medium">Mån</th>
+                              <th className="p-2 text-left font-medium">Tis</th>
+                              <th className="p-2 text-left font-medium">Ons</th>
+                              <th className="p-2 text-left font-medium">Tor</th>
+                              <th className="p-2 text-left font-medium">Fre</th>
+                              <th className="p-2 text-left font-medium">Lör</th>
+                              <th className="p-2 text-left font-medium">Sön</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weeks.map((week, weekIndex) => {
+                              // Calculate ISO week number
+                              const firstDay = week[0].date;
+                              const startOfYear = new Date(firstDay.getFullYear(), 0, 1);
+                              const days = Math.floor((firstDay.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+                              const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
+
+                              return (
+                                <tr key={weekIndex} className="border-b">
+                                  <td className="p-2 text-muted-foreground font-medium">v.{weekNumber}</td>
+                                  {week.map((day, dayIndex) => (
+                                    <td
+                                      key={dayIndex}
+                                      className={`p-2 align-top ${day.visits.length > 0 ? 'bg-muted/50' : ''}`}
+                                    >
+                                      <div className="font-medium mb-1">
+                                        {day.date.getDate()}
+                                      </div>
+                                      {day.visits.length > 0 && (
+                                        <div className="space-y-0.5">
+                                          {day.visits.map((visit, idx) => {
+                                            // DB now stores timestamptz with proper timezone
+                                            const deptIcon = visit.department === 'GENTS' || visit.department === 'Herrar' ? '♂️' :
+                                                            visit.department === 'LADIES' || visit.department === 'Damer' ? '♀️' : '';
+                                            return (
+                                              <div key={idx} className="text-xs text-muted-foreground">
+                                                {deptIcon} {new Date(visit.eventtime).toLocaleTimeString('sv-SE', {
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  timeZone: 'Europe/Stockholm'
+                                                })}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Achievement Badges */}
       {member.badges && member.badges.length > 0 && (
         <Card>
@@ -649,7 +872,10 @@ export default function MemberDetail() {
                 return (
                   <Tooltip key={badge.achievement_type} delayDuration={200}>
                     <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="cursor-help px-2 py-1">
+                      <Badge
+                        variant="secondary"
+                        className={`cursor-help px-2 py-1 ${getBadgeSideColor(badge.achievement_type)}`}
+                      >
                         <span className="text-lg">{badgeInfo.emoji}</span>
                       </Badge>
                     </TooltipTrigger>
@@ -796,247 +1022,6 @@ export default function MemberDetail() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Besök & Aktivitet
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Visit statistics */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Senaste veckan</p>
-              <p className="text-2xl font-bold">
-                {(() => {
-                  const weekVisits = visits.filter(v =>
-                    new Date(v.eventtime) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                  );
-                  const gents = weekVisits.filter(v => v.department === 'GENTS' || v.department === 'Herrar').length;
-                  const ladies = weekVisits.filter(v => v.department === 'LADIES' || v.department === 'Damer').length;
-                  return (
-                    <>
-                      {weekVisits.length}{' '}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        (♂️{gents} ♀️{ladies})
-                      </span>
-                    </>
-                  );
-                })()}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Senaste månaden</p>
-              <p className="text-2xl font-bold">
-                {(() => {
-                  const monthVisits = visits.filter(v =>
-                    new Date(v.eventtime) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-                  );
-                  const gents = monthVisits.filter(v => v.department === 'GENTS' || v.department === 'Herrar').length;
-                  const ladies = monthVisits.filter(v => v.department === 'LADIES' || v.department === 'Damer').length;
-                  return (
-                    <>
-                      {monthVisits.length}{' '}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        (♂️{gents} ♀️{ladies})
-                      </span>
-                    </>
-                  );
-                })()}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Senaste 3 månaderna</p>
-              <p className="text-2xl font-bold">
-                {(() => {
-                  const threeMonthVisits = visits.filter(v =>
-                    new Date(v.eventtime) >= new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-                  );
-                  const gents = threeMonthVisits.filter(v => v.department === 'GENTS' || v.department === 'Herrar').length;
-                  const ladies = threeMonthVisits.filter(v => v.department === 'LADIES' || v.department === 'Damer').length;
-                  return (
-                    <>
-                      {threeMonthVisits.length}{' '}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        (♂️{gents} ♀️{ladies})
-                      </span>
-                    </>
-                  );
-                })()}
-              </p>
-            </div>
-          </div>
-
-          {/* First and last visit dates */}
-          {member.last_visit_at && (
-            <>
-              <Separator />
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Senaste besök</p>
-                  <p className="text-sm">
-                    {new Date(member.last_visit_at).toLocaleDateString('sv-SE', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      timeZone: 'Europe/Stockholm'
-                    })}
-                  </p>
-                </div>
-                {member.first_visit_at && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground">Första besök</p>
-                    <p className="text-sm">
-                      {new Date(member.first_visit_at).toLocaleDateString('sv-SE', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        timeZone: 'Europe/Stockholm'
-                      })}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Collapsible calendar */}
-          {!loading && visits.length > 0 && (
-            <>
-              <Separator />
-              <div>
-                <Button
-                  variant="ghost"
-                  onClick={() => setCalendarExpanded(!calendarExpanded)}
-                  className="w-full flex items-center justify-between p-4 -mx-4 hover:bg-muted/50"
-                  aria-expanded={calendarExpanded}
-                  aria-controls="visit-calendar"
-                >
-                  <span className="font-semibold">Besökskalender (senaste 4 veckorna)</span>
-                  {calendarExpanded ? (
-                    <ChevronUp className="h-5 w-5" aria-hidden="true" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5" aria-hidden="true" />
-                  )}
-                </Button>
-
-                {calendarExpanded && (
-                  <div id="visit-calendar" className="mt-4 overflow-x-auto" role="region" aria-label="Visit calendar details">
-                    {(() => {
-                      // Group visits by date (Swedish timezone)
-                      const visitsByDate = new Map<string, Visit[]>();
-                      visits.forEach(visit => {
-                        // Convert to Swedish date
-                        const dateStr = new Date(visit.eventtime).toLocaleDateString('sv-SE', {
-                          timeZone: 'Europe/Stockholm',
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit'
-                        });
-                        if (!visitsByDate.has(dateStr)) {
-                          visitsByDate.set(dateStr, []);
-                        }
-                        visitsByDate.get(dateStr)!.push(visit);
-                      });
-
-                      // Generate last 4 weeks (Swedish timezone)
-                      const weeks = [];
-                      const nowInSweden = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Stockholm' }));
-
-                      // Find the most recent Sunday (end of week)
-                      const mostRecentSunday = new Date(nowInSweden);
-                      const dayOfWeek = mostRecentSunday.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                      const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-                      mostRecentSunday.setDate(mostRecentSunday.getDate() + daysToSunday);
-
-                      for (let weekOffset = 3; weekOffset >= 0; weekOffset--) {
-                        const weekDays = [];
-                        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-                          const date = new Date(mostRecentSunday);
-                          // Go back weekOffset weeks, then add dayOffset days (0=Monday, 6=Sunday)
-                          date.setDate(date.getDate() - (weekOffset * 7) - (6 - dayOffset));
-                          const dateKey = date.toLocaleDateString('sv-SE', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit'
-                          });
-                          const dayVisits = visitsByDate.get(dateKey) || [];
-                          weekDays.push({ date, dateKey, visits: dayVisits });
-                        }
-                        weeks.push(weekDays);
-                      }
-
-                      return (
-                        <table className="w-full border-collapse text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="p-2 text-left font-medium">Vecka</th>
-                              <th className="p-2 text-left font-medium">Mån</th>
-                              <th className="p-2 text-left font-medium">Tis</th>
-                              <th className="p-2 text-left font-medium">Ons</th>
-                              <th className="p-2 text-left font-medium">Tor</th>
-                              <th className="p-2 text-left font-medium">Fre</th>
-                              <th className="p-2 text-left font-medium">Lör</th>
-                              <th className="p-2 text-left font-medium">Sön</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {weeks.map((week, weekIndex) => {
-                              // Calculate ISO week number
-                              const firstDay = week[0].date;
-                              const startOfYear = new Date(firstDay.getFullYear(), 0, 1);
-                              const days = Math.floor((firstDay.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-                              const weekNumber = Math.ceil((days + startOfYear.getDay() + 1) / 7);
-
-                              return (
-                                <tr key={weekIndex} className="border-b">
-                                  <td className="p-2 text-muted-foreground font-medium">v.{weekNumber}</td>
-                                  {week.map((day, dayIndex) => (
-                                    <td
-                                      key={dayIndex}
-                                      className={`p-2 align-top ${day.visits.length > 0 ? 'bg-muted/50' : ''}`}
-                                    >
-                                      <div className="font-medium mb-1">
-                                        {day.date.getDate()}
-                                      </div>
-                                      {day.visits.length > 0 && (
-                                        <div className="space-y-0.5">
-                                          {day.visits.map((visit, idx) => {
-                                            // DB stores UTC without timezone marker, so we need to add 'Z'
-                                            const utcTime = visit.eventtime.endsWith('Z') ? visit.eventtime : visit.eventtime + 'Z';
-                                            const deptIcon = visit.department === 'GENTS' || visit.department === 'Herrar' ? '♂️' :
-                                                            visit.department === 'LADIES' || visit.department === 'Damer' ? '♀️' : '';
-                                            return (
-                                              <div key={idx} className="text-xs text-muted-foreground">
-                                                {deptIcon} {new Date(utcTime).toLocaleTimeString('sv-SE', {
-                                                  hour: '2-digit',
-                                                  minute: '2-digit',
-                                                  timeZone: 'Europe/Stockholm'
-                                                })}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </td>
-                                  ))}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
 
       {!loading && invoices.length > 0 && (
         <Card>

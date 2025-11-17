@@ -534,3 +534,29 @@ export function getBadgeSortValue(achievementType: string): number {
 
   return sortValues[achievementType] || 0;
 }
+
+/**
+ * Get badge side (gents, ladies, or null for neutral badges)
+ */
+export function getBadgeSide(achievementType: string): 'gents' | 'ladies' | null {
+  if (achievementType.endsWith('_gents')) return 'gents';
+  if (achievementType.endsWith('_ladies')) return 'ladies';
+  return null;
+}
+
+/**
+ * Get background color class for badge based on side
+ */
+export function getBadgeSideColor(achievementType: string): string {
+  const side = getBadgeSide(achievementType);
+
+  if (side === 'gents') {
+    return 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/40';
+  }
+  if (side === 'ladies') {
+    return 'bg-pink-100 dark:bg-pink-900/30 hover:bg-pink-200 dark:hover:bg-pink-900/40';
+  }
+
+  // Neutral badges (streak, anniversary, etc.)
+  return 'bg-secondary hover:bg-secondary/80';
+}

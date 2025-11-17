@@ -14,7 +14,7 @@ import { SectionHeader } from './components/ios/SectionHeader';
 import { IOSSearchBar } from './components/ios/IOSSearchBar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
-import { getBadgeInfo, getBadgeFullInfo, getCategoryDisplayName, getBadgeSortValue } from './lib/badge-info';
+import { getBadgeInfo, getBadgeFullInfo, getCategoryDisplayName, getBadgeSortValue, getBadgeSideColor } from './lib/badge-info';
 
 type SortField = 'customerNumber' | 'name' | 'visits' | 'age' | 'memberYears';
 type SortDirection = 'asc' | 'desc';
@@ -70,9 +70,9 @@ const calculateMemberYears = (member: Member, isQueueView: boolean = false): num
       || member.first_queue_fee_date;
   } else {
     // For regular members: Find the earliest date from available sources to determine membership start.
-    // Priority: fortnox_customer_since (ideal) > first_visit_at (first entrance fee payment, fallback)
+    // Priority: fortnox_customer_since (ideal) > last_entrance_fee_date (entrance fee) > last_annual_fee_date (annual fee fallback)
     // This matches the logic used in the badge system
-    relevantDate = member.fortnox_customer_since || member.first_visit_at;
+    relevantDate = member.fortnox_customer_since || member.last_entrance_fee_date || member.last_annual_fee_date;
   }
 
   if (!relevantDate) return null;
@@ -840,7 +840,10 @@ export default function MemberList({
                           return (
                             <Tooltip key={badge.achievement_type} delayDuration={200}>
                               <TooltipTrigger asChild>
-                                <Badge variant="secondary" className="cursor-help px-2 py-1">
+                                <Badge
+                                  variant="secondary"
+                                  className={`cursor-help px-2 py-1 ${getBadgeSideColor(badge.achievement_type)}`}
+                                >
                                   <span className="text-lg">{badgeInfo.emoji}</span>
                                 </Badge>
                               </TooltipTrigger>
