@@ -170,10 +170,12 @@ export function PrizesOverview() {
           }));
         }
 
-        // Time-based leaderboards
+        // Time-based leaderboards (Kallbadarna, Förmiddagspasset, Lunchgänget, Eftermiddagsklubben, Kvällsnjutarna, Nattugglorna)
         const timeSlots = [
-          { badge: 'morning_bird', start: 5, end: 9 },
+          { badge: 'morning_bird', start: 5, end: 8 },
+          { badge: 'foermiddagspasset', start: 8, end: 11 },
           { badge: 'lunch_badare', start: 11, end: 14 },
+          { badge: 'eftermiddagsklubben', start: 14, end: 18 },
           { badge: 'evening_bastare', start: 18, end: 20 },
           { badge: 'night_owl', start: 20, end: 22 }
         ];
