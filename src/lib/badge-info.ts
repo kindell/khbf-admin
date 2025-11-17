@@ -52,18 +52,18 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
 
   // Frequency badges - 30 days GENTS (dynamic)
   'monthly_champion_gents': {
-    emoji: '🥇',
-    name: 'Månadens Mästare Herr',
-    description: 'Flest besök senaste månaden på herrsidan',
+    emoji: '🦈',
+    name: 'Hajen',
+    description: 'Snabbast på herrsidan senaste månaden',
     category: 'frequency',
     isDynamic: true,
     period: 30,
     rank: 1
   },
   'top10_30d_gents': {
-    emoji: '⭐',
-    name: 'Bas-Stjärna Herr',
-    description: 'Topp 10 mest aktiva senaste månaden på herrsidan',
+    emoji: '🦭',
+    name: 'Valrossen',
+    description: 'Topp 10 mest aktiva på herrsidan senaste månaden',
     category: 'frequency',
     isDynamic: true,
     period: 30,
@@ -72,9 +72,9 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
 
   // Frequency badges - 30 days LADIES (dynamic)
   'monthly_champion_ladies': {
-    emoji: '🥇',
-    name: 'Månadens Mästare Dam',
-    description: 'Flest besök senaste månaden på damsidan',
+    emoji: '🐬',
+    name: 'Delfinen',
+    description: 'Snabbast på damsidan senaste månaden',
     category: 'frequency',
     isDynamic: true,
     period: 30,
@@ -82,8 +82,8 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'top10_30d_ladies': {
     emoji: '⭐',
-    name: 'Bas-Stjärna Dam',
-    description: 'Topp 10 mest aktiva senaste månaden på damsidan',
+    name: 'Sjöstjärnan',
+    description: 'Topp 10 mest aktiva på damsidan senaste månaden',
     category: 'frequency',
     isDynamic: true,
     period: 30,
@@ -92,18 +92,18 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
 
   // Frequency badges - 90 days GENTS (dynamic)
   'quarterly_champion_gents': {
-    emoji: '🏆',
-    name: 'Kvartals-Champion Herr',
-    description: 'Flest besök senaste kvartalet på herrsidan',
+    emoji: '🐧',
+    name: 'Fiskmåsen',
+    description: 'Uthålligast på herrsidan senaste kvartalet',
     category: 'frequency',
     isDynamic: true,
     period: 90,
     rank: 1
   },
   'veteran_gents': {
-    emoji: '🎖️',
-    name: 'Veteran Herr',
-    description: 'Topp 5 senaste kvartalet på herrsidan',
+    emoji: '🦀',
+    name: 'Krabban',
+    description: 'Topp 5 mest uthålliga på herrsidan senaste kvartalet',
     category: 'frequency',
     isDynamic: true,
     period: 90,
@@ -112,18 +112,18 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
 
   // Frequency badges - 90 days LADIES (dynamic)
   'quarterly_champion_ladies': {
-    emoji: '🏆',
-    name: 'Kvartals-Champion Dam',
-    description: 'Flest besök senaste kvartalet på damsidan',
+    emoji: '🦅',
+    name: 'Havsörnen',
+    description: 'Uthålligast på damsidan senaste kvartalet',
     category: 'frequency',
     isDynamic: true,
     period: 90,
     rank: 1
   },
   'veteran_ladies': {
-    emoji: '🎖️',
-    name: 'Veteran Dam',
-    description: 'Topp 5 senaste kvartalet på damsidan',
+    emoji: '🐙',
+    name: 'Bläckfisken',
+    description: 'Topp 5 mest uthålliga på damsidan senaste kvartalet',
     category: 'frequency',
     isDynamic: true,
     period: 90,
