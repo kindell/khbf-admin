@@ -430,6 +430,7 @@ export function PrizesOverview() {
   const renderSideSection = (side: 'gents' | 'ladies') => {
     const sideName = side === 'gents' ? 'Herrsidan' : 'Damsidan';
     const sideEmoji = side === 'gents' ? '👔' : '👗';
+    const sideBgColor = side === 'gents' ? 'bg-blue-50 dark:bg-blue-950/20' : 'bg-pink-50 dark:bg-pink-950/20';
 
     // Get all badges for this side
     const frequencyBadges = Object.entries(BADGE_DEFINITIONS)
@@ -440,66 +441,61 @@ export function PrizesOverview() {
       .filter(([type, _]) => type.endsWith(`_${side}`) && BADGE_DEFINITIONS[type].category === 'milestone');
 
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-            <span className="text-3xl">{sideEmoji}</span>
+      <Card className={sideBgColor}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-2xl">{sideEmoji}</span>
             {sideName}
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Utmärkelser baserade på aktivitet på {sideName.toLowerCase()}
-          </p>
-        </div>
-
-        {/* Frequency badges for this side */}
-        {frequencyBadges.length > 0 && (
-          <>
-            <div>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+          </CardTitle>
+          <CardDescription>
+            Utmärkelser baserade på aktivitet
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Frequency badges for this side */}
+          {frequencyBadges.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                Frekvens
-              </h3>
+                <h3 className="font-semibold">Frekvens</h3>
+              </div>
+              <div className="grid gap-3">
+                {frequencyBadges.map(([type, info]) => renderBadgeCard(type, info))}
+              </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {frequencyBadges.map(([type, info]) => renderBadgeCard(type, info))}
-            </div>
-          </>
-        )}
+          )}
 
-        <Separator />
+          <Separator />
 
-        {/* Time badges for this side */}
-        {timeBadges.length > 0 && (
-          <>
-            <div>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+          {/* Time badges for this side */}
+          {timeBadges.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                Tid
-              </h3>
+                <h3 className="font-semibold">Tid</h3>
+              </div>
+              <div className="grid gap-3">
+                {timeBadges.map(([type, info]) => renderBadgeCard(type, info))}
+              </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {timeBadges.map(([type, info]) => renderBadgeCard(type, info))}
-            </div>
-          </>
-        )}
+          )}
 
-        <Separator />
+          <Separator />
 
-        {/* Milestone badges for this side */}
-        {milestoneBadges.length > 0 && (
-          <>
-            <div>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+          {/* Milestone badges for this side */}
+          {milestoneBadges.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
                 <Target className="h-4 w-4 text-muted-foreground" />
-                Milstolpar
-              </h3>
+                <h3 className="font-semibold">Milstolpar</h3>
+              </div>
+              <div className="grid gap-3 grid-cols-2">
+                {milestoneBadges.map(([type, info]) => renderBadgeCard(type, info))}
+              </div>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {milestoneBadges.map(([type, info]) => renderBadgeCard(type, info))}
-            </div>
-          </>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
     );
   };
 
@@ -512,18 +508,23 @@ export function PrizesOverview() {
             Utmärkelser & Priser
           </CardTitle>
           <CardDescription>
-            Översikt över alla badges och deras innehavare, separerade per avdelning
+            Badges separerade per avdelning - Herrsidan och Damsidan
           </CardDescription>
         </CardHeader>
       </Card>
 
-      {/* Herrsidan */}
-      {renderSideSection('gents')}
+      {/* Two-column layout for sides */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Herrsidan */}
+        <div className="space-y-4">
+          {renderSideSection('gents')}
+        </div>
 
-      <Separator className="my-8" />
-
-      {/* Damsidan */}
-      {renderSideSection('ladies')}
+        {/* Damsidan */}
+        <div className="space-y-4">
+          {renderSideSection('ladies')}
+        </div>
+      </div>
 
       <Separator className="my-8" />
 
