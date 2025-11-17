@@ -140,10 +140,19 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
     period: 30,
     rank: 1
   },
+  'lunch_badare_gents': {
+    emoji: '🍔',
+    name: 'Lunchbadare Herr',
+    description: 'Flest besök 11-14 på lunchen på herrsidan',
+    category: 'time',
+    isDynamic: true,
+    period: 30,
+    rank: 1
+  },
   'evening_bastare_gents': {
     emoji: '🌆',
     name: 'Kvällsbastare Herr',
-    description: 'Flest besök 17-21 på kvällen på herrsidan',
+    description: 'Flest besök 18-20 på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
@@ -152,7 +161,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   'night_owl_gents': {
     emoji: '🦉',
     name: 'Nattuggla Herr',
-    description: 'Flest besök 21-01 på natten på herrsidan',
+    description: 'Flest besök 20-22 sent på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
@@ -169,10 +178,19 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
     period: 30,
     rank: 1
   },
+  'lunch_badare_ladies': {
+    emoji: '🍔',
+    name: 'Lunchbadare Dam',
+    description: 'Flest besök 11-14 på lunchen på damsidan',
+    category: 'time',
+    isDynamic: true,
+    period: 30,
+    rank: 1
+  },
   'evening_bastare_ladies': {
     emoji: '🌆',
     name: 'Kvällsbastare Dam',
-    description: 'Flest besök 17-21 på kvällen på damsidan',
+    description: 'Flest besök 18-20 på kvällen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
@@ -181,7 +199,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   'night_owl_ladies': {
     emoji: '🦉',
     name: 'Nattuggla Dam',
-    description: 'Flest besök 21-01 på natten på damsidan',
+    description: 'Flest besök 20-22 sent på kvällen på damsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
@@ -438,12 +456,14 @@ export function getBadgeSortValue(achievementType: string): number {
     'streak_30d': 5,
 
     // Time-based badges GENTS
-    'morning_bird_gents': 3,
+    'morning_bird_gents': 4,
+    'lunch_badare_gents': 3,
     'evening_bastare_gents': 2,
     'night_owl_gents': 1,
 
     // Time-based badges LADIES
-    'morning_bird_ladies': 3,
+    'morning_bird_ladies': 4,
+    'lunch_badare_ladies': 3,
     'evening_bastare_ladies': 2,
     'night_owl_ladies': 1,
 
