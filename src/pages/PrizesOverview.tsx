@@ -134,58 +134,18 @@ export function PrizesOverview() {
   };
 
   const loadLeaderboards = async () => {
-    // We'll fetch top 10 for each period to show runner-ups for champion badges
+    // Fetch top 10 for each period and side to show runner-ups for champion badges
     const boards: Record<string, LeaderboardEntry[]> = {};
 
     try {
-      // 30-day leaderboard (for monthly_champion)
-      const { data: monthly } = await supabase
-        .rpc('get_top_bastare', { days: 30, limit_count: 10 });
+      // Load for both sides
+      for (const side of ['gents', 'ladies']) {
+        // 30-day leaderboard
+        const { data: monthly } = await supabase
+          .rpc('get_top_bastare', { days: 30, limit_count: 10, side });
 
-      if (monthly) {
-        boards['monthly_champion'] = monthly.map((m: any) => ({
-          userId: m.user_id,
-          visitCount: m.visit_count,
-          rank: m.rank,
-          firstName: m.first_name,
-          lastName: m.last_name,
-          customerNumber: m.customer_number
-        }));
-      }
-
-      // 90-day leaderboard (for quarterly_champion)
-      const { data: quarterly } = await supabase
-        .rpc('get_top_bastare', { days: 90, limit_count: 10 });
-
-      if (quarterly) {
-        boards['quarterly_champion'] = quarterly.map((m: any) => ({
-          userId: m.user_id,
-          visitCount: m.visit_count,
-          rank: m.rank,
-          firstName: m.first_name,
-          lastName: m.last_name,
-          customerNumber: m.customer_number
-        }));
-      }
-
-      // Time-based leaderboards
-      const timeSlots = [
-        { badge: 'morning_bird', start: 5, end: 9 },
-        { badge: 'evening_bastare', start: 17, end: 21 },
-        { badge: 'night_owl', start: 21, end: 1 }
-      ];
-
-      for (const slot of timeSlots) {
-        const { data: timeBoard } = await supabase
-          .rpc('get_time_based_leaderboard', {
-            start_hour: slot.start,
-            end_hour: slot.end,
-            period_days: 30,
-            limit_count: 10
-          });
-
-        if (timeBoard) {
-          boards[slot.badge] = timeBoard.map((m: any) => ({
+        if (monthly) {
+          boards[`monthly_champion_${side}`] = monthly.map((m: any) => ({
             userId: m.user_id,
             visitCount: m.visit_count,
             rank: m.rank,
@@ -193,6 +153,50 @@ export function PrizesOverview() {
             lastName: m.last_name,
             customerNumber: m.customer_number
           }));
+        }
+
+        // 90-day leaderboard
+        const { data: quarterly } = await supabase
+          .rpc('get_top_bastare', { days: 90, limit_count: 10, side });
+
+        if (quarterly) {
+          boards[`quarterly_champion_${side}`] = quarterly.map((m: any) => ({
+            userId: m.user_id,
+            visitCount: m.visit_count,
+            rank: m.rank,
+            firstName: m.first_name,
+            lastName: m.last_name,
+            customerNumber: m.customer_number
+          }));
+        }
+
+        // Time-based leaderboards
+        const timeSlots = [
+          { badge: 'morning_bird', start: 5, end: 9 },
+          { badge: 'evening_bastare', start: 17, end: 21 },
+          { badge: 'night_owl', start: 21, end: 1 }
+        ];
+
+        for (const slot of timeSlots) {
+          const { data: timeBoard } = await supabase
+            .rpc('get_time_based_leaderboard', {
+              start_hour: slot.start,
+              end_hour: slot.end,
+              period_days: 30,
+              limit_count: 10,
+              side
+            });
+
+          if (timeBoard) {
+            boards[`${slot.badge}_${side}`] = timeBoard.map((m: any) => ({
+              userId: m.user_id,
+              visitCount: m.visit_count,
+              rank: m.rank,
+              firstName: m.first_name,
+              lastName: m.last_name,
+              customerNumber: m.customer_number
+            }));
+          }
         }
       }
 
@@ -423,6 +427,82 @@ export function PrizesOverview() {
     );
   }
 
+  const renderSideSection = (side: 'gents' | 'ladies') => {
+    const sideName = side === 'gents' ? 'Herrsidan' : 'Damsidan';
+    const sideEmoji = side === 'gents' ? '👔' : '👗';
+
+    // Get all badges for this side
+    const frequencyBadges = Object.entries(BADGE_DEFINITIONS)
+      .filter(([type, _]) => type.endsWith(`_${side}`) && BADGE_DEFINITIONS[type].category === 'frequency');
+    const timeBadges = Object.entries(BADGE_DEFINITIONS)
+      .filter(([type, _]) => type.endsWith(`_${side}`) && BADGE_DEFINITIONS[type].category === 'time');
+    const milestoneBadges = Object.entries(BADGE_DEFINITIONS)
+      .filter(([type, _]) => type.endsWith(`_${side}`) && BADGE_DEFINITIONS[type].category === 'milestone');
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+            <span className="text-3xl">{sideEmoji}</span>
+            {sideName}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Utmärkelser baserade på aktivitet på {sideName.toLowerCase()}
+          </p>
+        </div>
+
+        {/* Frequency badges for this side */}
+        {frequencyBadges.length > 0 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                Frekvens
+              </h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {frequencyBadges.map(([type, info]) => renderBadgeCard(type, info))}
+            </div>
+          </>
+        )}
+
+        <Separator />
+
+        {/* Time badges for this side */}
+        {timeBadges.length > 0 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                Tid
+              </h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {timeBadges.map(([type, info]) => renderBadgeCard(type, info))}
+            </div>
+          </>
+        )}
+
+        <Separator />
+
+        {/* Milestone badges for this side */}
+        {milestoneBadges.length > 0 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Target className="h-4 w-4 text-muted-foreground" />
+                Milstolpar
+              </h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {milestoneBadges.map(([type, info]) => renderBadgeCard(type, info))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 space-y-6">
       <Card>
@@ -432,37 +512,30 @@ export function PrizesOverview() {
             Utmärkelser & Priser
           </CardTitle>
           <CardDescription>
-            Översikt över alla badges och deras innehavare
+            Översikt över alla badges och deras innehavare, separerade per avdelning
           </CardDescription>
         </CardHeader>
       </Card>
 
-      {/* Dynamic Badges */}
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Dynamiska Utmärkelser</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Dessa utmärkelser kan komma och gå beroende på aktivitet
-          </p>
-        </div>
-        {renderCategory('frequency', 'frequency')}
-        <Separator />
-        {renderCategory('streak')}
-        <Separator />
-        {renderCategory('time')}
-      </div>
+      {/* Herrsidan */}
+      {renderSideSection('gents')}
 
       <Separator className="my-8" />
 
-      {/* Permanent Badges */}
+      {/* Damsidan */}
+      {renderSideSection('ladies')}
+
+      <Separator className="my-8" />
+
+      {/* Combined/Shared Badges (Streak, Anniversary, Challenge) */}
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Permanenta Utmärkelser</h2>
+          <h2 className="text-2xl font-bold mb-2">Gemensamma Utmärkelser</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Dessa utmärkelser behålls permanent när de väl har erhållits
+            Dessa utmärkelser gäller båda sidorna
           </p>
         </div>
-        {renderCategory('milestone')}
+        {renderCategory('streak')}
         <Separator />
         {renderCategory('anniversary')}
         <Separator />

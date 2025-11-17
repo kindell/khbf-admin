@@ -50,101 +50,200 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
     period: 30
   },
 
-  // Frequency badges - 30 days (dynamic)
-  'monthly_champion': {
+  // Frequency badges - 30 days GENTS (dynamic)
+  'monthly_champion_gents': {
     emoji: '🥇',
-    name: 'Månadens Mästare',
-    description: 'Flest besök senaste månaden',
+    name: 'Månadens Mästare Herr',
+    description: 'Flest besök senaste månaden på herrsidan',
     category: 'frequency',
     isDynamic: true,
     period: 30,
     rank: 1
   },
-  'top10_30d': {
+  'top10_30d_gents': {
     emoji: '⭐',
-    name: 'Bas-Stjärna',
-    description: 'Topp 10 mest aktiva senaste månaden',
+    name: 'Bas-Stjärna Herr',
+    description: 'Topp 10 mest aktiva senaste månaden på herrsidan',
     category: 'frequency',
     isDynamic: true,
     period: 30,
     maxRank: 10
   },
 
-  // Frequency badges - 90 days (dynamic)
-  'quarterly_champion': {
+  // Frequency badges - 30 days LADIES (dynamic)
+  'monthly_champion_ladies': {
+    emoji: '🥇',
+    name: 'Månadens Mästare Dam',
+    description: 'Flest besök senaste månaden på damsidan',
+    category: 'frequency',
+    isDynamic: true,
+    period: 30,
+    rank: 1
+  },
+  'top10_30d_ladies': {
+    emoji: '⭐',
+    name: 'Bas-Stjärna Dam',
+    description: 'Topp 10 mest aktiva senaste månaden på damsidan',
+    category: 'frequency',
+    isDynamic: true,
+    period: 30,
+    maxRank: 10
+  },
+
+  // Frequency badges - 90 days GENTS (dynamic)
+  'quarterly_champion_gents': {
     emoji: '🏆',
-    name: 'Kvartals-Champion',
-    description: 'Flest besök senaste kvartalet',
+    name: 'Kvartals-Champion Herr',
+    description: 'Flest besök senaste kvartalet på herrsidan',
     category: 'frequency',
     isDynamic: true,
     period: 90,
     rank: 1
   },
-  'veteran': {
+  'veteran_gents': {
     emoji: '🎖️',
-    name: 'Veteran',
-    description: 'Topp 5 senaste kvartalet',
+    name: 'Veteran Herr',
+    description: 'Topp 5 senaste kvartalet på herrsidan',
     category: 'frequency',
     isDynamic: true,
     period: 90,
     maxRank: 5
   },
 
-  // Time-based badges (dynamic)
-  'morning_bird': {
+  // Frequency badges - 90 days LADIES (dynamic)
+  'quarterly_champion_ladies': {
+    emoji: '🏆',
+    name: 'Kvartals-Champion Dam',
+    description: 'Flest besök senaste kvartalet på damsidan',
+    category: 'frequency',
+    isDynamic: true,
+    period: 90,
+    rank: 1
+  },
+  'veteran_ladies': {
+    emoji: '🎖️',
+    name: 'Veteran Dam',
+    description: 'Topp 5 senaste kvartalet på damsidan',
+    category: 'frequency',
+    isDynamic: true,
+    period: 90,
+    maxRank: 5
+  },
+
+  // Time-based badges GENTS (dynamic)
+  'morning_bird_gents': {
     emoji: '🌅',
-    name: 'Morgonpigg',
-    description: 'Flest besök 05-09 på morgonen',
+    name: 'Morgonpigg Herr',
+    description: 'Flest besök 05-09 på morgonen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
     rank: 1
   },
-  'evening_bastare': {
+  'evening_bastare_gents': {
     emoji: '🌆',
-    name: 'Kvällsbastare',
-    description: 'Flest besök 17-21 på kvällen',
+    name: 'Kvällsbastare Herr',
+    description: 'Flest besök 17-21 på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
     rank: 1
   },
-  'night_owl': {
+  'night_owl_gents': {
     emoji: '🦉',
-    name: 'Nattuggla',
-    description: 'Flest besök 21-01 på natten',
+    name: 'Nattuggla Herr',
+    description: 'Flest besök 21-01 på natten på herrsidan',
     category: 'time',
     isDynamic: true,
     period: 30,
     rank: 1
   },
 
-  // Milestone badges (permanent)
-  'visits_100': {
+  // Time-based badges LADIES (dynamic)
+  'morning_bird_ladies': {
+    emoji: '🌅',
+    name: 'Morgonpigg Dam',
+    description: 'Flest besök 05-09 på morgonen på damsidan',
+    category: 'time',
+    isDynamic: true,
+    period: 30,
+    rank: 1
+  },
+  'evening_bastare_ladies': {
+    emoji: '🌆',
+    name: 'Kvällsbastare Dam',
+    description: 'Flest besök 17-21 på kvällen på damsidan',
+    category: 'time',
+    isDynamic: true,
+    period: 30,
+    rank: 1
+  },
+  'night_owl_ladies': {
+    emoji: '🦉',
+    name: 'Nattuggla Dam',
+    description: 'Flest besök 21-01 på natten på damsidan',
+    category: 'time',
+    isDynamic: true,
+    period: 30,
+    rank: 1
+  },
+
+  // Milestone badges GENTS (permanent)
+  'visits_100_gents': {
     emoji: '💯',
-    name: 'Hundralapp',
-    description: 'Totalt 100 besök',
+    name: 'Hundralapp Herr',
+    description: 'Totalt 100 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
   },
-  'visits_500': {
+  'visits_500_gents': {
     emoji: '🎯',
-    name: 'Femhundralapp',
-    description: 'Totalt 500 besök',
+    name: 'Femhundralapp Herr',
+    description: 'Totalt 500 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
   },
-  'visits_1000': {
+  'visits_1000_gents': {
     emoji: '🚀',
-    name: 'Tusenlapp',
-    description: 'Totalt 1000 besök',
+    name: 'Tusenlapp Herr',
+    description: 'Totalt 1000 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
   },
-  'visits_5000': {
+  'visits_5000_gents': {
     emoji: '⚡',
-    name: 'Legendarisk',
-    description: 'Totalt 5000 besök',
+    name: 'Legendarisk Herr',
+    description: 'Totalt 5000 besök på herrsidan',
+    category: 'milestone',
+    isDynamic: false
+  },
+
+  // Milestone badges LADIES (permanent)
+  'visits_100_ladies': {
+    emoji: '💯',
+    name: 'Hundralapp Dam',
+    description: 'Totalt 100 besök på damsidan',
+    category: 'milestone',
+    isDynamic: false
+  },
+  'visits_500_ladies': {
+    emoji: '🎯',
+    name: 'Femhundralapp Dam',
+    description: 'Totalt 500 besök på damsidan',
+    category: 'milestone',
+    isDynamic: false
+  },
+  'visits_1000_ladies': {
+    emoji: '🚀',
+    name: 'Tusenlapp Dam',
+    description: 'Totalt 1000 besök på damsidan',
+    category: 'milestone',
+    isDynamic: false
+  },
+  'visits_5000_ladies': {
+    emoji: '⚡',
+    name: 'Legendarisk Dam',
+    description: 'Totalt 5000 besök på damsidan',
     category: 'milestone',
     isDynamic: false
   },
@@ -320,11 +419,17 @@ export function getPeriodDisplayText(days?: number): string {
 export function getBadgeSortValue(achievementType: string): number {
   // Define explicit sort orders for all badges
   const sortValues: Record<string, number> = {
-    // Frequency badges - sorted by ranking breadth (top10 → champion month → top5 → champion quarter)
-    'top10_30d': 50,           // Topp 10 månaden
-    'monthly_champion': 30,    // #1 månaden
-    'veteran': 20,             // Topp 5 kvartalet
-    'quarterly_champion': 10,  // #1 kvartalet
+    // Frequency badges GENTS - sorted by ranking breadth
+    'top10_30d_gents': 50,
+    'monthly_champion_gents': 30,
+    'veteran_gents': 20,
+    'quarterly_champion_gents': 10,
+
+    // Frequency badges LADIES - sorted by ranking breadth
+    'top10_30d_ladies': 50,
+    'monthly_champion_ladies': 30,
+    'veteran_ladies': 20,
+    'quarterly_champion_ladies': 10,
 
     // Streak badges - by days (shortest first)
     'streak_3d': 30,
@@ -332,16 +437,27 @@ export function getBadgeSortValue(achievementType: string): number {
     'streak_14d': 10,
     'streak_30d': 5,
 
-    // Time-based badges - by time of day (arbitrary ordering)
-    'morning_bird': 3,
-    'evening_bastare': 2,
-    'night_owl': 1,
+    // Time-based badges GENTS
+    'morning_bird_gents': 3,
+    'evening_bastare_gents': 2,
+    'night_owl_gents': 1,
 
-    // Milestone badges - by visit count (highest first)
-    'visits_5000': 5000,
-    'visits_1000': 1000,
-    'visits_500': 500,
-    'visits_100': 100,
+    // Time-based badges LADIES
+    'morning_bird_ladies': 3,
+    'evening_bastare_ladies': 2,
+    'night_owl_ladies': 1,
+
+    // Milestone badges GENTS - by visit count (highest first)
+    'visits_5000_gents': 5000,
+    'visits_1000_gents': 1000,
+    'visits_500_gents': 500,
+    'visits_100_gents': 100,
+
+    // Milestone badges LADIES - by visit count (highest first)
+    'visits_5000_ladies': 5000,
+    'visits_1000_ladies': 1000,
+    'visits_500_ladies': 500,
+    'visits_100_ladies': 100,
 
     // Anniversary badges - by years (most years first)
     'anniversary_20y': 20,
