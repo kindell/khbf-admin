@@ -153,9 +153,9 @@ export function PrizesOverview() {
         }));
       }
 
-      // 84-day leaderboard (for quarterly_champion)
+      // 90-day leaderboard (for quarterly_champion)
       const { data: quarterly } = await supabase
-        .rpc('get_top_bastare', { days: 84, limit_count: 10 });
+        .rpc('get_top_bastare', { days: 90, limit_count: 10 });
 
       if (quarterly) {
         boards['quarterly_champion'] = quarterly.map((m: any) => ({
@@ -255,7 +255,7 @@ export function PrizesOverview() {
                         Topp 5 (Runner-ups)
                       </p>
                       <div className="space-y-1">
-                        {leaderboard.slice(0, 5).map((entry) => (
+                        {leaderboard.slice(1, 6).map((entry) => (
                           <Link
                             key={entry.userId}
                             to={`/members/${entry.userId}`}
