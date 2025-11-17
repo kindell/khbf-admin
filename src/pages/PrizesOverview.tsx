@@ -173,8 +173,9 @@ export function PrizesOverview() {
         // Time-based leaderboards
         const timeSlots = [
           { badge: 'morning_bird', start: 5, end: 9 },
-          { badge: 'evening_bastare', start: 17, end: 21 },
-          { badge: 'night_owl', start: 21, end: 1 }
+          { badge: 'lunch_badare', start: 11, end: 14 },
+          { badge: 'evening_bastare', start: 18, end: 20 },
+          { badge: 'night_owl', start: 20, end: 22 }
         ];
 
         for (const slot of timeSlots) {
@@ -216,6 +217,7 @@ export function PrizesOverview() {
 
     const badgeInfo = getBadgeInfo(type);
     const isChampion = isChampionBadge(type);
+    const isTimeBased = info.category === 'time';
     const leaderboard = leaderboards[type];
 
     return (
@@ -233,7 +235,7 @@ export function PrizesOverview() {
           {/* Dynamic badges with ranking */}
           {info.isDynamic && (info.rank !== undefined || info.maxRank !== undefined) && (
             <>
-              {/* Champion badges: show current holder + runner-ups from leaderboard */}
+              {/* Champion badges: show current holder + runner-ups only for time-based badges */}
               {isChampion && stats.holders && stats.holders.length > 0 && (
                 <div className="space-y-3">
                   <div className="bg-yellow-50 p-3 rounded-lg">
@@ -253,13 +255,14 @@ export function PrizesOverview() {
                     )}
                   </div>
 
-                  {leaderboard && leaderboard.length > 1 && (
+                  {/* Only show runner-ups for time-based badges (not frequency badges) */}
+                  {isTimeBased && leaderboard && leaderboard.length > 1 && (
                     <div>
                       <p className="text-sm font-medium text-muted-foreground mb-2">
-                        Topp 5 (Runner-ups)
+                        Runner-ups
                       </p>
                       <div className="space-y-1">
-                        {leaderboard.slice(1, 6).map((entry) => (
+                        {leaderboard.slice(1, 4).map((entry) => (
                           <Link
                             key={entry.userId}
                             to={`/members/${entry.userId}`}
