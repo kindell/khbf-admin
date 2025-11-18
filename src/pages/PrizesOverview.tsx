@@ -60,66 +60,80 @@ export function PrizesOverview() {
     setLoading(true);
 
     try {
-      // Load badge holder counts and info for all badge types
+      // Load badge holder counts and info for all badge types IN PARALLEL
       const stats: Record<string, BadgeStats> = {};
+      const badgeEntries = Object.entries(BADGE_DEFINITIONS);
 
-      for (const [type, info] of Object.entries(BADGE_DEFINITIONS)) {
-        // Get count of active holders (exclude system accounts)
-        const { count, error: countError } = await supabase
+      // Step 1: Fetch all counts in parallel
+      const countPromises = badgeEntries.map(([type]) =>
+        supabase
           .from('member_achievements')
           .select('user_id, members!inner(is_system_account)', { count: 'exact', head: true })
           .eq('achievement_type', type)
           .eq('is_active', true)
-          .eq('members.is_system_account', false);
+          .eq('members.is_system_account', false)
+      );
 
-        if (countError) {
-          console.error(`Error loading count for ${type}:`, countError);
-          continue;
+      const countResults = await Promise.all(countPromises);
+
+      // Process count results
+      countResults.forEach((result, index) => {
+        const [type] = badgeEntries[index];
+        if (result.error) {
+          console.error(`Error loading count for ${type}:`, result.error);
+        } else {
+          stats[type] = {
+            type,
+            count: result.count || 0
+          };
         }
+      });
 
-        stats[type] = {
-          type,
-          count: count || 0
-        };
+      // Step 2: Identify dynamic badges that need holder details
+      const dynamicBadges = badgeEntries.filter(([_, info]) =>
+        info.isDynamic && (info.rank !== undefined || info.maxRank !== undefined)
+      );
 
-        // For dynamic badges with ranking, load holder details
-        if (info.isDynamic && (info.rank !== undefined || info.maxRank !== undefined)) {
-          const { data: holders, error: holdersError } = await supabase
-            .from('member_achievements')
-            .select(`
-              user_id,
-              achievement_data,
-              members!inner (
-                id,
-                first_name,
-                last_name,
-                fortnox_customer_number,
-                is_system_account
-              )
-            `)
-            .eq('achievement_type', type)
-            .eq('is_active', true)
-            .eq('members.is_system_account', false);
+      // Step 3: Fetch all holder details in parallel
+      const holderPromises = dynamicBadges.map(([type]) =>
+        supabase
+          .from('member_achievements')
+          .select(`
+            user_id,
+            achievement_data,
+            members!inner (
+              id,
+              first_name,
+              last_name,
+              fortnox_customer_number,
+              is_system_account
+            )
+          `)
+          .eq('achievement_type', type)
+          .eq('is_active', true)
+          .eq('members.is_system_account', false)
+      );
 
-          if (holdersError) {
-            console.error(`Error loading holders for ${type}:`, holdersError);
-            continue;
-          }
+      const holderResults = await Promise.all(holderPromises);
 
-          if (holders && holders.length > 0) {
-            stats[type].holders = holders.map((h: any) => ({
-              userId: h.user_id,
-              firstName: h.members.first_name,
-              lastName: h.members.last_name,
-              customerNumber: h.members.fortnox_customer_number,
-              rank: h.achievement_data?.rank,
-              visits: h.achievement_data?.visits,
-              metadata: h.achievement_data
-            }))
-            .sort((a, b) => (a.rank || 0) - (b.rank || 0));
-          }
+      // Process holder results
+      holderResults.forEach((result, index) => {
+        const [type] = dynamicBadges[index];
+        if (result.error) {
+          console.error(`Error loading holders for ${type}:`, result.error);
+        } else if (result.data && result.data.length > 0) {
+          stats[type].holders = result.data.map((h: any) => ({
+            userId: h.user_id,
+            firstName: h.members.first_name,
+            lastName: h.members.last_name,
+            customerNumber: h.members.fortnox_customer_number,
+            rank: h.achievement_data?.rank,
+            visits: h.achievement_data?.visits,
+            metadata: h.achievement_data
+          }))
+          .sort((a, b) => (a.rank || 0) - (b.rank || 0));
         }
-      }
+      });
 
       setBadgeStats(stats);
 
@@ -134,74 +148,68 @@ export function PrizesOverview() {
   };
 
   const loadLeaderboards = async () => {
-    // Fetch top 10 for each period and side to show runner-ups for champion badges
+    // Fetch ALL leaderboards IN PARALLEL for champion badges (to show runner-ups)
     const boards: Record<string, LeaderboardEntry[]> = {};
 
     try {
-      // Load for both sides
-      for (const side of ['gents', 'ladies']) {
-        // 30-day leaderboard
-        const { data: monthly } = await supabase
-          .rpc('get_top_bastare', { days: 30, limit_count: 10, side });
+      const sides = ['gents', 'ladies'] as const;
+      const timeSlots = [
+        { badge: 'morning_bird', start: 5, end: 8 },
+        { badge: 'foermiddagspasset', start: 8, end: 11 },
+        { badge: 'lunch_badare', start: 11, end: 14 },
+        { badge: 'eftermiddagsklubben', start: 14, end: 18 },
+        { badge: 'evening_bastare', start: 18, end: 20 },
+        { badge: 'night_owl', start: 20, end: 22 }
+      ];
 
-        if (monthly) {
-          boards[`monthly_champion_${side}`] = monthly.map((m: any) => ({
-            userId: m.user_id,
-            visitCount: m.visit_count,
-            rank: m.rank,
-            firstName: m.first_name,
-            lastName: m.last_name,
-            customerNumber: m.customer_number
-          }));
-        }
+      // Build all promises (cast to Promise to satisfy TypeScript)
+      const allPromises: Array<Promise<any>> = [];
+      const promiseKeys: Array<{ key: string; type: 'frequency' | 'time' }> = [];
 
-        // 90-day leaderboard
-        const { data: quarterly } = await supabase
-          .rpc('get_top_bastare', { days: 90, limit_count: 10, side });
+      // Add frequency leaderboard promises (monthly & quarterly for both sides)
+      for (const side of sides) {
+        allPromises.push(
+          supabase.rpc('get_top_bastare', { days: 30, limit_count: 10, side }) as unknown as Promise<any>
+        );
+        promiseKeys.push({ key: `monthly_champion_${side}`, type: 'frequency' });
 
-        if (quarterly) {
-          boards[`quarterly_champion_${side}`] = quarterly.map((m: any) => ({
-            userId: m.user_id,
-            visitCount: m.visit_count,
-            rank: m.rank,
-            firstName: m.first_name,
-            lastName: m.last_name,
-            customerNumber: m.customer_number
-          }));
-        }
+        allPromises.push(
+          supabase.rpc('get_top_bastare', { days: 90, limit_count: 10, side }) as unknown as Promise<any>
+        );
+        promiseKeys.push({ key: `quarterly_champion_${side}`, type: 'frequency' });
 
-        // Time-based leaderboards (Kallbadarna, Förmiddagspasset, Lunchgänget, Eftermiddagsklubben, Kvällsnjutarna, Nattugglorna)
-        const timeSlots = [
-          { badge: 'morning_bird', start: 5, end: 8 },
-          { badge: 'foermiddagspasset', start: 8, end: 11 },
-          { badge: 'lunch_badare', start: 11, end: 14 },
-          { badge: 'eftermiddagsklubben', start: 14, end: 18 },
-          { badge: 'evening_bastare', start: 18, end: 20 },
-          { badge: 'night_owl', start: 20, end: 22 }
-        ];
-
+        // Add time-based leaderboard promises
         for (const slot of timeSlots) {
-          const { data: timeBoard } = await supabase
-            .rpc('get_time_based_leaderboard', {
+          allPromises.push(
+            supabase.rpc('get_time_based_leaderboard', {
               start_hour: slot.start,
               end_hour: slot.end,
               period_days: 30,
               limit_count: 10,
               side
-            });
-
-          if (timeBoard) {
-            boards[`${slot.badge}_${side}`] = timeBoard.map((m: any) => ({
-              userId: m.user_id,
-              visitCount: m.visit_count,
-              rank: m.rank,
-              firstName: m.first_name,
-              lastName: m.last_name,
-              customerNumber: m.customer_number
-            }));
-          }
+            }) as unknown as Promise<any>
+          );
+          promiseKeys.push({ key: `${slot.badge}_${side}`, type: 'time' });
         }
       }
+
+      // Execute all queries in parallel
+      const results = await Promise.all(allPromises);
+
+      // Process results
+      results.forEach((result, index) => {
+        const { key } = promiseKeys[index];
+        if (result.data) {
+          boards[key] = result.data.map((m: any) => ({
+            userId: m.user_id,
+            visitCount: m.visit_count,
+            rank: m.rank,
+            firstName: m.first_name,
+            lastName: m.last_name,
+            customerNumber: m.customer_number
+          }));
+        }
+      });
 
       setLeaderboards(boards);
     } catch (error) {
