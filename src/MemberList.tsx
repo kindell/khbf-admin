@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { type Member } from './lib/supabase';
+import { supabase, type Member } from './lib/supabase';
 import { type Period } from './App';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { Input } from './components/ui/input';
@@ -57,22 +57,34 @@ const calculateAge = (personalIdentityNumber: string | null): number | null => {
   return age;
 };
 
-const calculateMemberYears = (member: Member, isQueueView: boolean = false): number | null => {
+const calculateMemberYears = (member: Member, isQueueView: boolean = false, allMembers?: Member[]): number | null => {
   // Determine the relevant date based on member type
   let relevantDate: string | null;
 
   if (isQueueView) {
     // For queue members: when they joined the queue
-    // Priority: fortnox_customer_since (ideal) > first_queue_fee_date (first payment, best approximation)
-    // Note: first_queue_fee_date is not perfect (they may have queued before paying first fee),
-    // but it's the best approximation we have
-    relevantDate = member.fortnox_customer_since
+    // Priority: queue_join_date (Portlux ground truth) > fortnox_customer_since > first_queue_fee_date
+    relevantDate = member.queue_join_date
+      || member.fortnox_customer_since
       || member.first_queue_fee_date;
   } else {
-    // For regular members: Find the earliest date from available sources to determine membership start.
-    // Priority: fortnox_customer_since (ideal) > last_entrance_fee_date (entrance fee) > last_annual_fee_date (annual fee fallback)
-    // This matches the logic used in the badge system
-    relevantDate = member.fortnox_customer_since || member.last_entrance_fee_date || member.last_annual_fee_date;
+    // For medbadare: inherit membership date from primary member
+    // @ts-ignore - related_members is added dynamically by App.tsx
+    if (member.related_members && member.related_members.length > 0 && allMembers) {
+      const primaryMemberId = member.related_members[0]; // Get first related member
+      const primaryMember = allMembers.find(m => m.id === primaryMemberId);
+      if (primaryMember?.fortnox_customer_since) {
+        relevantDate = primaryMember.fortnox_customer_since;
+      } else {
+        // Fallback to own dates if primary has none
+        relevantDate = member.fortnox_customer_since || member.last_entrance_fee_date || member.last_annual_fee_date;
+      }
+    } else {
+      // For regular members: Find the earliest date from available sources to determine membership start.
+      // Priority: fortnox_customer_since (ideal) > last_entrance_fee_date (entrance fee) > last_annual_fee_date (annual fee fallback)
+      // This matches the logic used in the badge system
+      relevantDate = member.fortnox_customer_since || member.last_entrance_fee_date || member.last_annual_fee_date;
+    }
   }
 
   if (!relevantDate) return null;
@@ -91,8 +103,8 @@ const calculateMemberYears = (member: Member, isQueueView: boolean = false): num
 
 const calculateQueueDays = (member: Member): number | null => {
   // For queue members: when they joined the queue
-  // Priority: fortnox_customer_since (ideal) > first_queue_fee_date (first payment, best approximation)
-  const relevantDate = member.fortnox_customer_since || member.first_queue_fee_date;
+  // Priority: queue_join_date (Portlux ground truth) > fortnox_customer_since > first_queue_fee_date
+  const relevantDate = member.queue_join_date || member.fortnox_customer_since || member.first_queue_fee_date;
 
   if (!relevantDate) return null;
 
@@ -165,6 +177,9 @@ export default function MemberList({
     return badgesParam !== null && badgesParam.length > 0;
   });
 
+  // Queue positions for KÖANDE members (member_id -> position)
+  const [queuePositions, setQueuePositions] = useState<Map<string, number>>(new Map());
+
   // Initialize search from URL on mount
   useEffect(() => {
     const searchParam = searchParams.get('search');
@@ -210,11 +225,46 @@ export default function MemberList({
     setSearchParams(params, { replace: true });
   }, [selectedActivityStatuses, selectedCategories, selectedBadges, search, sortField, sortDirection]);
 
+  // Calculate queue positions when showing queue view
+  useEffect(() => {
+    const isQueueView = selectedCategories.size === 1 && selectedCategories.has('KÖANDE');
+
+    if (isQueueView) {
+      // Calculate queue positions for all KÖANDE members
+      const calculatePositions = async () => {
+        const positions = new Map<string, number>();
+
+        // Get all KÖANDE members
+        const koandeMembersToCalculate = members.filter(m => m.status === 'KÖANDE');
+
+        // Batch fetch all positions using Promise.all
+        await Promise.all(
+          koandeMembersToCalculate.map(async (member) => {
+            const { data: position } = await supabase
+              .rpc('get_queue_position', { member_id_param: member.id });
+
+            if (position) {
+              positions.set(member.id, position);
+            }
+          })
+        );
+
+        setQueuePositions(positions);
+      };
+
+      calculatePositions();
+    } else {
+      // Clear positions when not in queue view
+      setQueuePositions(new Map());
+    }
+  }, [selectedCategories, members]);
+
   // Calculate category and activity status for each member
   const membersWithCategory = members.map(m => ({
     ...m,
     category: getMemberCategory(m),
-    activityStatus: getActivityStatus(m)
+    activityStatus: getActivityStatus(m),
+    queuePosition: queuePositions.get(m.id)
   }));
 
   // Calculate counts for activity status (filtered by selected categories)
@@ -456,12 +506,21 @@ export default function MemberList({
 
   // Sort members
   const sortedMembers = [...deduplicatedMembers].sort((a, b) => {
-    // Special sorting for queue members (by fortnox_customer_since or first_queue_fee_date, oldest first = highest in queue)
+    // Special sorting for queue members (by queue_join_date from Portlux, with fallback)
     if (isQueueView) {
-      const dateStrA = a.fortnox_customer_since || a.first_queue_fee_date;
-      const dateStrB = b.fortnox_customer_since || b.first_queue_fee_date;
+      // Primary: queue_join_date (Portlux ground truth)
+      const dateStrA = a.queue_join_date || a.fortnox_customer_since || a.first_queue_fee_date;
+      const dateStrB = b.queue_join_date || b.fortnox_customer_since || b.first_queue_fee_date;
       const dateA = dateStrA ? new Date(dateStrA).getTime() : Infinity;
       const dateB = dateStrB ? new Date(dateStrB).getTime() : Infinity;
+
+      // Secondary: customer_number (for same-day joins)
+      if (dateA === dateB) {
+        const numA = parseInt(a.fortnox_customer_number || '999999');
+        const numB = parseInt(b.fortnox_customer_number || '999999');
+        return numA - numB;
+      }
+
       return dateA - dateB; // Oldest first
     }
 
@@ -500,8 +559,8 @@ export default function MemberList({
           else compareValue = daysA - daysB;
         } else {
           // For regular view: sort by years as member
-          const yearsA = calculateMemberYears(a, false);
-          const yearsB = calculateMemberYears(b, false);
+          const yearsA = calculateMemberYears(a, false, members);
+          const yearsB = calculateMemberYears(b, false, members);
           if (yearsA === null && yearsB === null) compareValue = 0;
           else if (yearsA === null) compareValue = 1;
           else if (yearsB === null) compareValue = -1;
@@ -732,12 +791,12 @@ export default function MemberList({
               Inga medlemmar {search ? 'matchar sökningen' : 'hittades'}
             </div>
           ) : (
-            sortedMembers.map((member, index) => (
+            sortedMembers.map((member) => (
               <MemberRow
                 key={member.id}
                 member={member}
                 onClick={() => handleMemberClick(member)}
-                queuePosition={isQueueView ? index + 1 : undefined}
+                queuePosition={isQueueView ? member.queuePosition : undefined}
                 displayCategory={getDisplayCategory(member)}
               />
             ))
@@ -774,7 +833,8 @@ export default function MemberList({
                 </TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Avgifter</TableHead>
-                <TableHead>Badges</TableHead>
+                {isQueueView && <TableHead>Källa</TableHead>}
+                {!isQueueView && <TableHead>Badges</TableHead>}
                 {!isQueueView && <TableHead>Access</TableHead>}
                 {!isQueueView && (
                   <TableHead
@@ -802,7 +862,7 @@ export default function MemberList({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedMembers.map((member, index) => (
+              {sortedMembers.map((member) => (
                 <TableRow
                   key={member.id}
                   onClick={() => handleMemberClick(member)}
@@ -810,7 +870,7 @@ export default function MemberList({
                 >
                   {selectedCategories.size === 1 && selectedCategories.has('KÖANDE') && (
                     <TableCell className="font-semibold text-muted-foreground">
-                      {index + 1}
+                      {member.queuePosition}
                     </TableCell>
                   )}
                   <TableCell className="font-mono text-sm">{member.fortnox_customer_number}</TableCell>
@@ -832,38 +892,51 @@ export default function MemberList({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {member.badges && member.badges.length > 0 ? (
-                        member.badges.map((badge: any) => {
-                          const badgeInfo = getBadgeInfo(badge.achievement_type);
-                          return (
-                            <Tooltip key={badge.achievement_type} delayDuration={200}>
-                              <TooltipTrigger asChild>
-                                <Badge
-                                  variant="secondary"
-                                  className={`cursor-help px-2 py-1 ${getBadgeSideColor(badge.achievement_type)}`}
-                                >
-                                  <span className="text-lg">{badgeInfo.emoji}</span>
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-2xl">{badgeInfo.emoji}</span>
-                                  <div>
-                                    <div className="font-semibold">{badgeInfo.name}</div>
-                                    <div className="text-xs text-muted-foreground">{badgeInfo.description}</div>
+                  {isQueueView ? (
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {member.queue_date_source === 'google_sheets' && 'Google Forms'}
+                        {member.queue_date_source === 'portlux_manual' && 'Portlux'}
+                        {member.queue_date_source === 'invoice_first_queue_fee' && 'Första faktura'}
+                        {member.queue_date_source === 'fortnox_customer_since' && 'Fortnox'}
+                        {member.queue_date_source === 'manual' && 'Manuellt'}
+                        {!member.queue_date_source && '-'}
+                      </span>
+                    </TableCell>
+                  ) : (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {member.badges && member.badges.length > 0 ? (
+                          member.badges.map((badge: any) => {
+                            const badgeInfo = getBadgeInfo(badge.achievement_type);
+                            return (
+                              <Tooltip key={badge.achievement_type} delayDuration={200}>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="secondary"
+                                    className={`cursor-help px-2 py-1 ${getBadgeSideColor(badge.achievement_type)}`}
+                                  >
+                                    <span className="text-lg">{badgeInfo.emoji}</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-2xl">{badgeInfo.emoji}</span>
+                                    <div>
+                                      <div className="font-semibold">{badgeInfo.name}</div>
+                                      <div className="text-xs text-muted-foreground">{badgeInfo.description}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          );
-                        })
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </div>
-                  </TableCell>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                   {!isQueueView && (
                     <TableCell>
                       <div className="flex gap-1">
@@ -883,7 +956,7 @@ export default function MemberList({
                   <TableCell className="text-right">
                     {isQueueView
                       ? (calculateQueueDays(member) ?? '-')
-                      : (calculateMemberYears(member, false) ?? '-')
+                      : (calculateMemberYears(member, false, members) ?? '-')
                     }
                   </TableCell>
                 </TableRow>
