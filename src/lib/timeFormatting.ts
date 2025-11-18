@@ -1,10 +1,10 @@
 /**
  * Format timestamp for conversation list (Apple Messages style)
  * - Less than 1 hour: "5m", "30m"
- * - Today: "9:41 AM"
- * - Yesterday: "Yesterday"
- * - This week: "Monday", "Tuesday"
- * - Older: "Jan 15", "Dec 3"
+ * - Today: "9:41"
+ * - Yesterday: "Igår"
+ * - This week: "Måndag", "Tisdag"
+ * - Older: "15 jan", "3 dec"
  */
 export function formatConversationTime(dateString: string): string {
   const date = new Date(dateString);
@@ -14,9 +14,9 @@ export function formatConversationTime(dateString: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  // Less than 1 minute: "Now"
+  // Less than 1 minute: "Nu"
   if (diffMins < 1) {
-    return 'Now';
+    return 'Nu';
   }
 
   // Less than 1 hour: show minutes
@@ -24,12 +24,12 @@ export function formatConversationTime(dateString: string): string {
     return `${diffMins}m`;
   }
 
-  // Today: show time
+  // Today: show time (24-hour format for Swedish)
   if (diffHours < 24 && date.getDate() === now.getDate()) {
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
+    return date.toLocaleTimeString('sv-SE', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: false
     });
   }
 
@@ -41,30 +41,30 @@ export function formatConversationTime(dateString: string): string {
     date.getMonth() === yesterday.getMonth() &&
     date.getFullYear() === yesterday.getFullYear()
   ) {
-    return 'Yesterday';
+    return 'Igår';
   }
 
   // This week: show day name
   if (diffDays < 7) {
-    return date.toLocaleDateString('en-US', { weekday: 'long' });
+    return date.toLocaleDateString('sv-SE', { weekday: 'long' });
   }
 
   // Older: show date
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
+  return date.toLocaleDateString('sv-SE', {
+    day: 'numeric',
+    month: 'short'
   });
 }
 
 /**
  * Format timestamp for message bubbles (Apple Messages style)
- * Returns: "9:41 AM"
+ * Returns: "09:41"
  */
 export function formatMessageTime(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
+  return date.toLocaleTimeString('sv-SE', {
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: true
+    hour12: false
   });
 }

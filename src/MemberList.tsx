@@ -289,23 +289,70 @@ export default function MemberList({
     return selectedCategories.has(m.category);
   });
 
-  // Step 3: Apply badge filter (AND logic: member must have ALL selected badges)
+  // Step 3: Apply badge filter with smart OR/AND logic
+  // For merged badges (gents/ladies pairs), use OR logic within the pair
+  // For different badge types, use AND logic between them
   const badgeFilteredMembers = categoryFilteredMembers.filter(m => {
     if (selectedBadges.size === 0) return true; // No badge filter
 
-    // Member must have ALL selected badges
-    return Array.from(selectedBadges).every(badgeType =>
-      m.badges?.some(b => b.achievement_type === badgeType && b.is_active)
+    // Group selected badges by base name
+    const badgeGroups = new Map<string, string[]>();
+    Array.from(selectedBadges).forEach(badgeType => {
+      // Check if this is a gendered badge
+      if (badgeType.endsWith('_gents') || badgeType.endsWith('_ladies')) {
+        const baseName = badgeType.replace(/_gents$|_ladies$/, '');
+        if (!badgeGroups.has(baseName)) {
+          badgeGroups.set(baseName, []);
+        }
+        badgeGroups.get(baseName)!.push(badgeType);
+      } else {
+        // Non-gendered badge gets its own group
+        badgeGroups.set(badgeType, [badgeType]);
+      }
+    });
+
+    // Member must satisfy ALL groups (AND logic between groups)
+    // But only needs to have ONE badge from each group (OR logic within group)
+    return Array.from(badgeGroups.values()).every(badgeGroup =>
+      badgeGroup.some(badgeType =>
+        m.badges?.some(b => b.achievement_type === badgeType && b.is_active)
+      )
     );
   });
 
   // Step 4: Calculate badge counts FROM BADGE-FILTERED MEMBERS
   // This shows how many members with selected badges ALSO have each other badge
+  // For time/milestone/frequency badges, merge gents and ladies versions
   const badgeCounts: Map<string, number> = new Map();
+  const mergedBadgeTypes: Map<string, string[]> = new Map(); // Maps display key to actual badge types
+
   badgeFilteredMembers.forEach(m => {
     m.badges?.forEach(badge => {
       if (badge.is_active) {
-        badgeCounts.set(badge.achievement_type, (badgeCounts.get(badge.achievement_type) || 0) + 1);
+        const type = badge.achievement_type;
+        const fullInfo = getBadgeFullInfo(type);
+
+        // For badges that have both gents and ladies versions, use base name as key
+        if (type.endsWith('_gents') || type.endsWith('_ladies')) {
+          const baseName = type.replace(/_gents$|_ladies$/, '');
+          const displayKey = `${baseName}_merged`; // Use a merged key
+
+          badgeCounts.set(displayKey, (badgeCounts.get(displayKey) || 0) + 1);
+
+          // Track which actual badge types this merged key represents
+          if (!mergedBadgeTypes.has(displayKey)) {
+            mergedBadgeTypes.set(displayKey, []);
+          }
+          const types = mergedBadgeTypes.get(displayKey)!;
+          const gentsType = `${baseName}_gents`;
+          const ladiesType = `${baseName}_ladies`;
+          if (!types.includes(gentsType)) types.push(gentsType);
+          if (!types.includes(ladiesType)) types.push(ladiesType);
+        } else {
+          // For non-gendered badges, use as-is
+          badgeCounts.set(type, (badgeCounts.get(type) || 0) + 1);
+          mergedBadgeTypes.set(type, [type]);
+        }
       }
     });
   });
@@ -314,13 +361,20 @@ export default function MemberList({
   // Keep selected badges at the top of the list
   const availableBadges = Array.from(badgeCounts.entries())
     .filter(([, count]) => count > 0)
-    .map(([type, count]) => ({
-      type,
-      count,
-      info: getBadgeInfo(type),
-      fullInfo: getBadgeFullInfo(type),
-      isSelected: selectedBadges.has(type)
-    }))
+    .map(([displayKey, count]) => {
+      const actualTypes = mergedBadgeTypes.get(displayKey) || [displayKey];
+      const primaryType = actualTypes[0]; // Use first type for info
+      const isSelected = actualTypes.some(t => selectedBadges.has(t));
+
+      return {
+        type: displayKey,
+        actualTypes, // Array of actual badge types this represents
+        count,
+        info: getBadgeInfo(primaryType),
+        fullInfo: getBadgeFullInfo(primaryType),
+        isSelected
+      };
+    })
     .sort((a, b) => {
       // Selected badges first
       if (a.isSelected && !b.isSelected) return -1;
@@ -350,8 +404,9 @@ export default function MemberList({
     if (catA !== catB) return catA - catB;
 
     // Finally by descending scale/prestige (higher values first)
-    const valueA = getBadgeSortValue(a.type);
-    const valueB = getBadgeSortValue(b.type);
+    // Use actualTypes[0] for sort value (the primary type)
+    const valueA = getBadgeSortValue(a.actualTypes[0]);
+    const valueB = getBadgeSortValue(b.actualTypes[0]);
     return valueB - valueA;
   });
 
@@ -414,12 +469,18 @@ export default function MemberList({
     setSelectedCategories(newSelected);
   };
 
-  const toggleBadge = (badgeType: string) => {
+  const toggleBadge = (displayKey: string, actualTypes: string[]) => {
     const newSelected = new Set(selectedBadges);
-    if (newSelected.has(badgeType)) {
-      newSelected.delete(badgeType);
+
+    // Check if any of the actual types are currently selected
+    const isAnySelected = actualTypes.some(t => newSelected.has(t));
+
+    if (isAnySelected) {
+      // Remove all actual types
+      actualTypes.forEach(t => newSelected.delete(t));
     } else {
-      newSelected.add(badgeType);
+      // Add all actual types
+      actualTypes.forEach(t => newSelected.add(t));
       // Auto-expand when selecting a badge
       setBadgeFiltersOpen(true);
     }
@@ -444,7 +505,8 @@ export default function MemberList({
       m.fortnox_customer_number?.includes(searchLower) ||
       m.full_name?.toLowerCase().includes(searchLower) ||
       m.email?.toLowerCase().includes(searchLower) ||
-      m.phone?.includes(searchLower)
+      m.phone?.includes(searchLower) ||
+      m.address?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -731,7 +793,7 @@ export default function MemberList({
                     {getCategoryDisplayName(category as any)}:
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {badges.map(({ type, count, info, isSelected }) => (
+                    {badges.map(({ type, actualTypes, count, info, isSelected }) => (
                       <TooltipProvider key={type}>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -740,7 +802,7 @@ export default function MemberList({
                               className={`cursor-pointer transition-all ${
                                 isSelected ? 'ring-2 ring-offset-1' : 'opacity-60 hover:opacity-100'
                               }`}
-                              onClick={() => toggleBadge(type)}
+                              onClick={() => toggleBadge(type, actualTypes)}
                             >
                               {info.emoji} {info.name} ({count})
                               {isSelected && <X className="h-3 w-3 ml-1 inline" />}
@@ -775,11 +837,20 @@ export default function MemberList({
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input
           type="text"
-          placeholder="Sök medlem (namn, email, telefon, kundnummer)..."
+          placeholder="Sök medlem (namn, email, telefon, kundnummer, adress)..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
+          className="pl-10 pr-10"
         />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Rensa sökning"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* iOS-style List (mobile) */}

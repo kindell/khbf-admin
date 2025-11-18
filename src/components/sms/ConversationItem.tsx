@@ -26,22 +26,13 @@ function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-// Generate avatar color based on phone number
-function getAvatarColor(identifier: string): string {
-  const colors = [
-    'from-blue-400 to-blue-600',
-    'from-green-400 to-green-600',
-    'from-purple-400 to-purple-600',
-    'from-pink-400 to-pink-600',
-    'from-yellow-400 to-yellow-600',
-    'from-red-400 to-red-600',
-    'from-indigo-400 to-indigo-600',
-    'from-teal-400 to-teal-600'
-  ];
-
-  // Hash string to number
-  const hash = identifier.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[hash % colors.length];
+// Generate consistent avatar style (matching ChatBubble)
+function getAvatarStyle(identifier: string): { bg: string; text: string } {
+  // Use consistent style: light background with colored text
+  return {
+    bg: 'bg-primary/10',
+    text: 'text-primary'
+  };
 }
 
 export function ConversationItem({ item, onClick }: ConversationItemProps) {
@@ -78,24 +69,24 @@ export function ConversationItem({ item, onClick }: ConversationItemProps) {
             .slice(0, 2)
         : (data as Thread).phone_number.slice(-2);
 
-  const avatarColor = isBroadcast
-    ? 'from-purple-400 to-indigo-600'
-    : getAvatarColor((data as Thread).phone_number);
+  const avatarStyle = isBroadcast
+    ? { bg: 'bg-accent/10', text: 'text-accent' }
+    : getAvatarStyle((data as Thread).phone_number);
 
   return (
     <div
       onClick={onClick}
       className={cn(
         'flex items-center gap-3 px-4 py-3',
-        'hover:bg-gray-50 active:bg-gray-100',
+        'hover:bg-accent/50 active:bg-accent',
         'cursor-pointer transition-colors duration-150',
-        'border-b border-gray-200/50'
+        'border-b border-border'
       )}
     >
       {/* Unread indicator dot (only shown if unread) */}
       <div className="w-2 flex-shrink-0">
         {hasUnread && (
-          <div className="w-2 h-2 rounded-full bg-[#007AFF]" />
+          <div className="w-2 h-2 rounded-full bg-primary" />
         )}
       </div>
 
@@ -103,10 +94,10 @@ export function ConversationItem({ item, onClick }: ConversationItemProps) {
       <div
         className={cn(
           'w-10 h-10 rounded-full flex items-center justify-center',
-          'text-white font-medium flex-shrink-0',
-          'bg-gradient-to-br',
-          isBroadcast ? 'text-lg' : 'text-sm',
-          avatarColor
+          'font-semibold flex-shrink-0',
+          isBroadcast ? 'text-lg' : 'text-xs',
+          avatarStyle.bg,
+          avatarStyle.text
         )}
       >
         {avatarContent}
@@ -117,13 +108,13 @@ export function ConversationItem({ item, onClick }: ConversationItemProps) {
         <div className="flex items-baseline justify-between gap-2">
           <span
             className={cn(
-              'text-[17px] truncate',
+              'text-[17px] truncate text-foreground',
               hasUnread ? 'font-semibold' : 'font-normal'
             )}
           >
             {displayName}
           </span>
-          <span className="text-[15px] text-gray-500 flex-shrink-0">
+          <span className="text-[15px] text-muted-foreground flex-shrink-0">
             {formatConversationTime(time)}
           </span>
         </div>
@@ -132,14 +123,14 @@ export function ConversationItem({ item, onClick }: ConversationItemProps) {
           <p
             className={cn(
               'text-[15px] truncate',
-              hasUnread ? 'text-gray-900 font-medium' : 'text-gray-500'
+              hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'
             )}
           >
             {previewText}
           </p>
 
           {hasUnread && (
-            <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-[#007AFF] text-white text-xs font-medium flex items-center justify-center">
+            <div className="flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">
               {unreadCount}
             </div>
           )}
@@ -148,7 +139,7 @@ export function ConversationItem({ item, onClick }: ConversationItemProps) {
 
       {/* Chevron */}
       <svg
-        className="w-5 h-5 text-gray-400 flex-shrink-0"
+        className="w-5 h-5 text-muted-foreground flex-shrink-0"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"

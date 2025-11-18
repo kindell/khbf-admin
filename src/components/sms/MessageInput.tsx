@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { Send, Info } from 'lucide-react';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  showVariablesButton?: boolean;
+  onShowVariables?: () => void;
 }
 
 export interface MessageInputRef {
@@ -14,7 +17,9 @@ export interface MessageInputRef {
 export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(({
   onSend,
   disabled = false,
-  placeholder = 'Meddelande'
+  placeholder = 'Meddelande',
+  showVariablesButton = false,
+  onShowVariables
 }, ref) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -74,8 +79,20 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(({
   const canSend = message.trim().length > 0 && !disabled;
 
   return (
-    <div className="bg-white border-t min-h-[72px] p-4 w-full box-border z-10 flex-shrink-0">
+    <div className="bg-card border-t border-border/30 min-h-[72px] p-4 w-full box-border z-10 flex-shrink-0">
       <div className="flex items-end gap-2 max-w-full box-border w-full">
+        {/* Variables button */}
+        {showVariablesButton && (
+          <button
+            type="button"
+            onClick={onShowVariables}
+            className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-full border border-border/30 bg-muted text-muted-foreground hover:bg-accent flex items-center justify-center transition-all flex-shrink-0"
+            aria-label="Visa variabler"
+          >
+            <Info className="w-4 h-4" />
+          </button>
+        )}
+
         <textarea
           ref={textareaRef}
           value={message}
@@ -84,21 +101,19 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none py-2 px-3 border border-gray-300 rounded-[20px] text-[17px] leading-[22px] text-black bg-white outline-none min-h-[36px] max-h-[120px] overflow-y-auto transition-colors focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed placeholder:text-gray-500"
+          className="flex-1 resize-none py-2 px-3 border border-border/30 rounded-[20px] text-[17px] leading-[22px] text-foreground bg-card outline-none min-h-[36px] max-h-[120px] overflow-y-auto transition-colors focus:border-primary disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed placeholder:text-muted-foreground"
         />
         <button
           onClick={handleSend}
           disabled={!canSend}
-          className={`w-9 h-9 min-w-[36px] min-h-[36px] rounded-full border-none flex items-center justify-center cursor-pointer transition-all flex-shrink-0 ${
+          className={`w-9 h-9 min-w-[36px] min-h-[36px] rounded-full border-none flex items-center justify-center transition-all flex-shrink-0 bg-blue-500 text-white ${
             canSend
-              ? 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105 active:bg-blue-700 active:scale-95'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              ? 'cursor-pointer hover:bg-blue-600 hover:scale-105 active:bg-blue-700 active:scale-95'
+              : 'opacity-40 cursor-not-allowed'
           }`}
           aria-label="Send message"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 2l8 8-8 8V2z" transform="rotate(-90 10 10)" />
-          </svg>
+          <Send className="w-4 h-4" />
         </button>
       </div>
     </div>

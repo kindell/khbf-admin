@@ -13,6 +13,8 @@ import {
   isChampionBadge,
   type BadgeInfo
 } from '../lib/badge-info';
+import { MobileContainer } from '../components/layout/MobileContainer';
+import { useSidebar } from '../contexts/SidebarContext';
 
 interface BadgeStats {
   type: string;
@@ -48,6 +50,7 @@ const categoryIcons: Record<BadgeInfo['category'], any> = {
 
 export function PrizesOverview() {
   const navigate = useNavigate();
+  const { openSidebar } = useSidebar();
   const [badgeStats, setBadgeStats] = useState<Record<string, BadgeStats>>({});
   const [leaderboards, setLeaderboards] = useState<Record<string, LeaderboardEntry[]>>({});
   const [loading, setLoading] = useState(true);
@@ -248,13 +251,13 @@ export function PrizesOverview() {
               {/* Champion badges: show current holder + runner-ups only for time-based badges */}
               {isChampion && stats.holders && stats.holders.length > 0 && (
                 <div className="space-y-3">
-                  <div className="bg-yellow-50 p-3 rounded-lg">
+                  <div className="bg-accent/10 p-3 rounded-lg border border-accent/20">
                     <p className="text-sm font-medium text-muted-foreground mb-1">
                       Aktuell innehavare
                     </p>
                     <Link
                       to={`/members/${stats.holders[0].userId}`}
-                      className="text-lg font-bold hover:underline"
+                      className="text-lg font-bold hover:underline text-foreground"
                     >
                       {stats.holders[0].firstName} {stats.holders[0].lastName}
                     </Link>
@@ -424,26 +427,42 @@ export function PrizesOverview() {
 
   if (loading) {
     return (
-      <div className="p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-6 w-6" />
+      <MobileContainer className="overflow-hidden">
+        {/* Custom Header */}
+        <div className="z-10 h-auto py-3 px-4 pb-4 flex items-center justify-between bg-card/80 backdrop-blur-xl border-b border-border/30 w-full box-border flex-shrink-0">
+          {/* Menu button */}
+          <button
+            className="p-2 -ml-2 hover:bg-accent active:bg-accent/80 rounded-lg transition-colors lg:invisible"
+            onClick={openSidebar}
+            aria-label="Öppna meny"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-foreground">
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+
+          {/* Center title */}
+          <div className="absolute left-1/2 -translate-x-1/2 text-center">
+            <div className="text-[17px] font-semibold text-foreground flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
               Utmärkelser & Priser
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Laddar prisdata...</p>
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-background w-full">
+          <div className="py-4 px-4 w-full box-border">
+            <p className="text-muted-foreground text-center">Laddar prisdata...</p>
+          </div>
+        </div>
+      </MobileContainer>
     );
   }
 
   const renderSideSection = (side: 'gents' | 'ladies') => {
     const sideName = side === 'gents' ? 'Herrsidan' : 'Damsidan';
     const sideEmoji = side === 'gents' ? '👔' : '👗';
-    const sideBgColor = side === 'gents' ? 'bg-blue-50 dark:bg-blue-950/20' : 'bg-pink-50 dark:bg-pink-950/20';
 
     // Get all badges for this side
     const frequencyBadges = Object.entries(BADGE_DEFINITIONS)
@@ -454,7 +473,7 @@ export function PrizesOverview() {
       .filter(([type, _]) => type.endsWith(`_${side}`) && BADGE_DEFINITIONS[type].category === 'milestone');
 
     return (
-      <Card className={sideBgColor}>
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="text-2xl">{sideEmoji}</span>
@@ -513,48 +532,63 @@ export function PrizesOverview() {
   };
 
   return (
-    <div className="p-4 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-6 w-6" />
+    <MobileContainer className="overflow-hidden">
+      {/* Custom Header */}
+      <div className="z-10 h-auto py-3 px-4 pb-4 flex items-center justify-between bg-card/80 backdrop-blur-xl border-b border-border/30 w-full box-border flex-shrink-0">
+        {/* Menu button */}
+        <button
+          className="p-2 -ml-2 hover:bg-accent active:bg-accent/80 rounded-lg transition-colors lg:invisible"
+          onClick={openSidebar}
+          aria-label="Öppna meny"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-foreground">
+            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </button>
+
+        {/* Center title */}
+        <div className="absolute left-1/2 -translate-x-1/2 text-center">
+          <div className="text-[17px] font-semibold text-foreground flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
             Utmärkelser & Priser
-          </CardTitle>
-          <CardDescription>
-            Badges separerade per avdelning - Herrsidan och Damsidan
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {/* Two-column layout for sides */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Herrsidan */}
-        <div className="space-y-4">
-          {renderSideSection('gents')}
-        </div>
-
-        {/* Damsidan */}
-        <div className="space-y-4">
-          {renderSideSection('ladies')}
+          </div>
         </div>
       </div>
 
-      <Separator className="my-8" />
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-background w-full">
+        <div className="py-4 px-4 w-full box-border space-y-6">
+          {/* Two-column layout for sides */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Herrsidan */}
+            <div className="space-y-4">
+              {renderSideSection('gents')}
+            </div>
 
-      {/* Combined/Shared Badges (Streak, Anniversary, Challenge) */}
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">Gemensamma Utmärkelser</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Dessa utmärkelser gäller båda sidorna
-          </p>
+            {/* Damsidan */}
+            <div className="space-y-4">
+              {renderSideSection('ladies')}
+            </div>
+          </div>
+
+          <Separator className="my-8" />
+
+          {/* Combined/Shared Badges (Streak, Anniversary, Challenge) */}
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Gemensamma Utmärkelser</h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                Dessa utmärkelser gäller båda sidorna
+              </p>
+            </div>
+            {renderCategory('streak')}
+            <Separator />
+            {renderCategory('anniversary')}
+            <Separator />
+            {renderCategory('challenge')}
+          </div>
         </div>
-        {renderCategory('streak')}
-        <Separator />
-        {renderCategory('anniversary')}
-        <Separator />
-        {renderCategory('challenge')}
       </div>
-    </div>
+    </MobileContainer>
   );
 }

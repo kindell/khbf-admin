@@ -133,7 +133,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   // Time-based badges GENTS (dynamic)
   'morning_bird_gents': {
     emoji: '🌅',
-    name: 'Kallbadarna Herr',
+    name: 'Kallbadarna',
     description: 'Topp 5 besökare 05-08 på morgonen på herrsidan',
     category: 'time',
     isDynamic: true,
@@ -142,7 +142,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'foermiddagspasset_gents': {
     emoji: '🏋️',
-    name: 'Förmiddagspasset Herr',
+    name: 'Förmiddagspasset',
     description: 'Topp 5 besökare 08-11 på förmiddagen på herrsidan',
     category: 'time',
     isDynamic: true,
@@ -151,7 +151,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'lunch_badare_gents': {
     emoji: '🍔',
-    name: 'Lunchgänget Herr',
+    name: 'Lunchgänget',
     description: 'Topp 5 besökare 11-14 på lunchen på herrsidan',
     category: 'time',
     isDynamic: true,
@@ -160,7 +160,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'eftermiddagsklubben_gents': {
     emoji: '🍻',
-    name: 'Eftermiddagsklubben Herr',
+    name: 'Eftermiddagsklubben',
     description: 'Topp 5 besökare 14-18 på eftermiddagen på herrsidan',
     category: 'time',
     isDynamic: true,
@@ -169,7 +169,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'evening_bastare_gents': {
     emoji: '🌆',
-    name: 'Kvällsnjutarna Herr',
+    name: 'Kvällsnjutarna',
     description: 'Topp 5 besökare 18-20 på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
@@ -178,7 +178,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'night_owl_gents': {
     emoji: '🦉',
-    name: 'Nattugglorna Herr',
+    name: 'Nattugglorna',
     description: 'Topp 5 besökare 20-22 sent på kvällen på herrsidan',
     category: 'time',
     isDynamic: true,
@@ -189,7 +189,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   // Time-based badges LADIES (dynamic)
   'morning_bird_ladies': {
     emoji: '🌅',
-    name: 'Kallbadarna Dam',
+    name: 'Kallbadarna',
     description: 'Topp 5 besökare 05-08 på morgonen på damsidan',
     category: 'time',
     isDynamic: true,
@@ -198,7 +198,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'foermiddagspasset_ladies': {
     emoji: '🏋️',
-    name: 'Förmiddagspasset Dam',
+    name: 'Förmiddagspasset',
     description: 'Topp 5 besökare 08-11 på förmiddagen på damsidan',
     category: 'time',
     isDynamic: true,
@@ -207,7 +207,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'lunch_badare_ladies': {
     emoji: '🍔',
-    name: 'Lunchgänget Dam',
+    name: 'Lunchgänget',
     description: 'Topp 5 besökare 11-14 på lunchen på damsidan',
     category: 'time',
     isDynamic: true,
@@ -216,7 +216,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'eftermiddagsklubben_ladies': {
     emoji: '🍻',
-    name: 'Eftermiddagsklubben Dam',
+    name: 'Eftermiddagsklubben',
     description: 'Topp 5 besökare 14-18 på eftermiddagen på damsidan',
     category: 'time',
     isDynamic: true,
@@ -225,7 +225,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'evening_bastare_ladies': {
     emoji: '🌆',
-    name: 'Kvällsnjutarna Dam',
+    name: 'Kvällsnjutarna',
     description: 'Topp 5 besökare 18-20 på kvällen på damsidan',
     category: 'time',
     isDynamic: true,
@@ -234,7 +234,7 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   },
   'night_owl_ladies': {
     emoji: '🦉',
-    name: 'Nattugglorna Dam',
+    name: 'Nattugglorna',
     description: 'Topp 5 besökare 20-22 sent på kvällen på damsidan',
     category: 'time',
     isDynamic: true,
@@ -245,28 +245,28 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   // Milestone badges GENTS (permanent)
   'visits_100_gents': {
     emoji: '💯',
-    name: 'Hundralapp Herr',
+    name: 'Hundralapp',
     description: 'Totalt 100 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
   },
   'visits_500_gents': {
     emoji: '🎯',
-    name: 'Femhundralapp Herr',
+    name: 'Femhundralapp',
     description: 'Totalt 500 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
   },
   'visits_1000_gents': {
     emoji: '🚀',
-    name: 'Tusenlapp Herr',
+    name: 'Tusenlapp',
     description: 'Totalt 1000 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
   },
   'visits_5000_gents': {
     emoji: '⚡',
-    name: 'Legendarisk Herr',
+    name: 'Legendarisk',
     description: 'Totalt 5000 besök på herrsidan',
     category: 'milestone',
     isDynamic: false
@@ -275,28 +275,28 @@ export const BADGE_DEFINITIONS: Record<string, BadgeInfo> = {
   // Milestone badges LADIES (permanent)
   'visits_100_ladies': {
     emoji: '💯',
-    name: 'Hundralapp Dam',
+    name: 'Hundralapp',
     description: 'Totalt 100 besök på damsidan',
     category: 'milestone',
     isDynamic: false
   },
   'visits_500_ladies': {
     emoji: '🎯',
-    name: 'Femhundralapp Dam',
+    name: 'Femhundralapp',
     description: 'Totalt 500 besök på damsidan',
     category: 'milestone',
     isDynamic: false
   },
   'visits_1000_ladies': {
     emoji: '🚀',
-    name: 'Tusenlapp Dam',
+    name: 'Tusenlapp',
     description: 'Totalt 1000 besök på damsidan',
     category: 'milestone',
     isDynamic: false
   },
   'visits_5000_ladies': {
     emoji: '⚡',
-    name: 'Legendarisk Dam',
+    name: 'Legendarisk',
     description: 'Totalt 5000 besök på damsidan',
     category: 'milestone',
     isDynamic: false

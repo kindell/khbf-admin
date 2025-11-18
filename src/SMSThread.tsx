@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { MobileContainer } from './components/layout/MobileContainer';
-import { MessageBubble } from './components/sms/MessageBubble';
+import { ChatBubble } from './components/chat/ChatBubble';
 import { ThreadHeader } from './components/sms/ThreadHeader';
 import { MessageInput, type MessageInputRef } from './components/sms/MessageInput';
 import { VariableHelper } from './components/sms/VariableHelper';
@@ -47,10 +47,44 @@ export function SMSThread() {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [showConversationInfo, setShowConversationInfo] = useState(false);
+  const [showVariableHelper, setShowVariableHelper] = useState(false);
   const previousMessageCountRef = useRef(0);
+  const [adminInitials, setAdminInitials] = useState<string>('JK');
 
   // Group messages using Apple Messages style grouping
   const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
+
+  // Get initials from name
+  const getInitials = (name: string | null): string => {
+    if (!name) return '';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const userInitials = threadInfo?.member_name ? getInitials(threadInfo.member_name) : undefined;
+
+  // Get current admin user session
+  useEffect(() => {
+    const savedSession = localStorage.getItem('khbf_admin_session');
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        // Extract initials from name (format: "Jon Kindell")
+        if (parsed.name) {
+          const nameParts = parsed.name.trim().split(' ');
+          if (nameParts.length >= 2) {
+            const initials = `${nameParts[0].charAt(0)}${nameParts[nameParts.length - 1].charAt(0)}`.toUpperCase();
+            setAdminInitials(initials);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to parse admin session:', error);
+      }
+    }
+  }, []);
 
   // Update page title when thread info loads
   useEffect(() => {
@@ -355,41 +389,13 @@ export function SMSThread() {
     }
   }
 
-  async function retryAIResponse(messageId: string) {
-    try {
-      const { error } = await supabase
-        .from('sms_queue')
-        .update({
-          ai_processed: null,
-          ai_processed_at: null,
-          ai_error: null
-        })
-        .eq('id', messageId)
-        .eq('direction', 'inbound');
-
-      if (error) throw error;
-
-      // Update local state to remove the ai_processed flag
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === messageId ? { ...msg, ai_processed: false } : msg
-        )
-      );
-
-      // Show success message
-      alert('AI kommer generera ett nytt svar inom 5 sekunder! ⏳');
-    } catch (error) {
-      console.error('Failed to retry AI response:', error);
-      alert('Kunde inte trigga nytt AI-svar');
-    }
-  }
 
   if (loading) {
     return (
       <MobileContainer>
         <div className="flex flex-col items-center justify-center h-full gap-4">
-          <div className="w-10 h-10 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
-          <p>Laddar konversation...</p>
+          <div className="w-10 h-10 border-3 border-border border-t-primary rounded-full animate-spin"></div>
+          <p className="text-muted-foreground">Laddar konversation...</p>
         </div>
       </MobileContainer>
     );
@@ -411,17 +417,17 @@ export function SMSThread() {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-50 w-full"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-background w-full"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div className="py-4 px-6 w-full box-border">
+        <div className="py-4 px-4 w-full box-border">
           {messages.length === 0 ? (
-            <div className="text-center py-15 px-5 text-gray-400">
+            <div className="text-center py-15 px-5 text-muted-foreground">
               <p>Inga meddelanden än. Skicka det första!</p>
             </div>
           ) : (
             groupedMessages.map((msg) => (
-              <MessageBubble
+              <ChatBubble
                 key={msg.id}
                 message={msg.message}
                 direction={msg.direction}
@@ -429,12 +435,11 @@ export function SMSThread() {
                 status={msg.status}
                 isFirstInGroup={msg.isFirstInGroup}
                 isLastInGroup={msg.isLastInGroup}
-                showTimestampOnLoad={msg.showTimestampOnLoad}
+                showTimestampOnLoad={false}
                 reactionEmoji={msg.reaction_emoji}
-                isAI={msg.is_ai}
-                messageId={msg.id}
-                aiProcessed={msg.ai_processed}
-                onRetryAI={retryAIResponse}
+                isAI={msg.is_ai || false}
+                userInitials={userInitials}
+                botInitials={msg.is_ai ? undefined : adminInitials}
               />
             ))
           )}
@@ -446,21 +451,21 @@ export function SMSThread() {
       {!isAtBottom && newMessageCount > 0 && (
         <button
           onClick={() => scrollToBottom()}
-          className="fixed bottom-[70px] right-5 bg-blue-500 text-white py-2.5 px-5 rounded-[20px] border-none font-semibold text-sm cursor-pointer shadow-lg hover:bg-blue-600 hover:-translate-y-0.5 active:translate-y-0 transition-all z-[100]"
+          className="fixed bottom-[70px] right-5 bg-primary text-primary-foreground py-2.5 px-5 rounded-[20px] border-none font-semibold text-sm cursor-pointer shadow-lg hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 transition-all z-[100]"
         >
           {newMessageCount} new message{newMessageCount > 1 ? 's' : ''}
         </button>
       )}
 
-      {/* Variable Helper - only show for members */}
+      {/* Variable Helper Drop-up */}
       {threadInfo?.member_id && (
-        <div className="border-t bg-white px-4 py-3">
-          <VariableHelper
-            onInsertVariable={(variable) => {
-              messageInputRef.current?.insertText(variable);
-            }}
-          />
-        </div>
+        <VariableHelper
+          open={showVariableHelper}
+          onInsertVariable={(variable) => {
+            messageInputRef.current?.insertText(variable);
+          }}
+          onClose={() => setShowVariableHelper(false)}
+        />
       )}
 
       {/* Message Input */}
@@ -470,15 +475,18 @@ export function SMSThread() {
           sendMessage(msg);
         }}
         disabled={sending}
+        showVariablesButton={!!threadInfo?.member_id}
+        onShowVariables={() => setShowVariableHelper(!showVariableHelper)}
       />
 
       {/* Conversation Info */}
-      {showConversationInfo && threadInfo && (
+      {threadInfo && (
         <ConversationInfo
           phoneNumber={threadInfo.phone_number}
           memberName={threadInfo.member_name}
           memberId={threadInfo.member_id}
           threadId={threadId!}
+          open={showConversationInfo}
           onClose={() => setShowConversationInfo(false)}
           onDelete={() => navigate('/messages', { state: { animationDirection: 'back' } })}
         />
