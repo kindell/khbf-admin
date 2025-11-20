@@ -443,7 +443,11 @@ export default function AIChat() {
         <div className="absolute left-1/2 -translate-x-1/2 text-center">
           <div className="text-[17px] font-semibold text-foreground flex items-center gap-2">
             <Bot className="h-5 w-5" />
-            AI Chat
+            {selectedMember ? (
+              <span>AI Chat: {selectedMember.first_name} {selectedMember.last_name}</span>
+            ) : (
+              <span>AI Chat</span>
+            )}
           </div>
         </div>
 
